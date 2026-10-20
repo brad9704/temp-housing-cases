@@ -119,3 +119,34 @@ def test_env_rejects_missing_token(monkeypatch):
     monkeypatch.setenv("CRAWL_BOT_TOKEN", "UNISTDisasterHousingBot")
     with pytest.raises(RuntimeError):
         CrawlConfig.from_env()
+
+
+def _cfg(state_dir):
+    return CrawlConfig(
+        user_agent="TestBot/0.1", bot_token="TestBot", min_delay=0.2, max_delay=0.3,
+        max_retries=3, timeout=5, backoff_base=0.1, state_dir=str(state_dir),
+    )
+
+
+def test_spacing_and_robots_shared_across_clients(server, tmp_path):
+    # 별도 프로세스를 흉내: 상태 디렉터리만 공유하는 클라이언트 두 개
+    SEEN["times"].clear()
+    PoliteClient(_cfg(tmp_path), rng=random.Random(1)).fetch(f"{server}/d")
+    PoliteClient(_cfg(tmp_path), rng=random.Random(2)).fetch(f"{server}/e")
+    paths = [p for p, _ in SEEN["times"]]
+    assert paths.count("/robots.txt") == 1  # 두 번째 클라이언트는 디스크 캐시 사용
+    ts = [t for p, t in SEEN["times"] if p in ("/d", "/e")]
+    assert ts[1] - ts[0] >= 0.5  # 두 번째 클라이언트도 Crawl-delay를 지킴
+
+
+def test_no_concurrent_requests_same_domain(server, tmp_path):
+    SEEN["times"].clear()
+    clients = [PoliteClient(_cfg(tmp_path), rng=random.Random(i)) for i in range(3)]
+    threads = [threading.Thread(target=c.fetch, args=(f"{server}/p{i}",)) for i, c in enumerate(clients)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    ts = sorted(t for p, t in SEEN["times"] if p.startswith("/p"))
+    assert len(ts) == 3
+    assert all(b - a >= 0.5 for a, b in zip(ts, ts[1:]))
