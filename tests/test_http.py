@@ -169,3 +169,14 @@ def test_override_cannot_be_faster_than_default():
     cfg = _cfg(None)
     cfg.domain_overrides = parse_domain_overrides("x.org=0.01:0.02:1")
     assert cfg.for_host("x.org") == (0.2, 0.3, 5)
+
+
+def test_sitemap_parse_and_years():
+    from collectors.recon_probe import _parse_sitemap, _years
+    xml = b"""<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <sitemap><loc>https://x.org/sitemap-2011-03.xml</loc></sitemap>
+    <sitemap><loc>https://x.org/post-sitemap7.xml</loc><lastmod>2019-05-01T00:00:00Z</lastmod></sitemap>
+    </sitemapindex>"""
+    kind, ents = _parse_sitemap(xml)
+    assert kind == "sitemapindex" and len(ents) == 2
+    assert _years(ents[0]) == [2011] and _years(ents[1]) == [2019]

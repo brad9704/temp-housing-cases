@@ -195,17 +195,8 @@ def _sitemap_bytes(r: dict) -> bytes:
     return b
 
 
-def cmd_sitemap(a) -> None:
-    r = _get(a.url)
-    if "_content" not in r or r.get("status") != 200:
-        _out(_strip(r))
-        return
-    try:
-        root = ET.fromstring(_sitemap_bytes(r))
-    except ET.ParseError as e:
-        r["parse_error"] = str(e)
-        _out(_strip(r))
-        return
+def _parse_sitemap(b: bytes) -> tuple[str, list[dict]]:
+    root = ET.fromstring(b)
     tag = root.tag.split("}")[-1]
     entries = []
     for el in root:
@@ -220,6 +211,20 @@ def cmd_sitemap(a) -> None:
                 pub = (ch.text or "").strip()
         if loc:
             entries.append({"loc": loc, "lastmod": lastmod, "publication_date": pub})
+    return tag, entries
+
+
+def cmd_sitemap(a) -> None:
+    r = _get(a.url)
+    if "_content" not in r or r.get("status") != 200:
+        _out(_strip(r))
+        return
+    try:
+        tag, entries = _parse_sitemap(_sitemap_bytes(r))
+    except ET.ParseError as e:
+        r["parse_error"] = str(e)
+        _out(_strip(r))
+        return
     total = len(entries)
     if a.grep:
         g = re.compile(a.grep)
@@ -231,6 +236,172 @@ def cmd_sitemap(a) -> None:
     if len(entries) > a.limit:
         r["last"] = entries[-min(5, len(entries) - a.limit):]
     _out(_strip(r))
+
+
+# ---- screen: 언론사 1곳 경량 선별 (요청 상한 있음) ---------------------------------
+_TDM_RE = re.compile(r"text\s*(and|&)\s*data\s*mining|\bTDM\b|data[- ]?mining|AI[- ]?training|machine learning|scrap(e|ing)|크롤링\s*금지|무단\s*수집", re.I)
+_CHALLENGE_RE = re.compile(r"cf-chl|challenge-platform|Just a moment|Attention Required|captcha|px-captcha|_Incapsula_|datadome", re.I)
+_PAYWALL_RE = re.compile(r"paywall|piano\.io|tinypass|poool|subscriber[- ]only|premium[- ]content|metered|会員限定|유료\s*회원|abbonati|suscríbete|abonnez-vous|abone\s*ol", re.I)
+_YEAR_RE = re.compile(r"(?<!\d)(199\d|20[0-3]\d)(?!\d)")
+
+
+def _years(e: dict) -> list[int]:
+    ys = [int(y) for y in _YEAR_RE.findall(e["loc"])]
+    for k in ("lastmod", "publication_date"):
+        if e.get(k):
+            m = _YEAR_RE.match(e[k])
+            if m:
+                ys.append(int(m.group(1)))
+    return ys
+
+
+def _trailing_num(loc: str) -> int:
+    m = re.search(r"(\d+)(?:\.xml)?(?:\.gz)?$", loc)
+    return int(m.group(1)) if m else -1
+
+
+def cmd_screen(a) -> None:
+    base = a.url if urlsplit(a.url).scheme else f"https://{a.url}"
+    c = client()
+    budget = {"n": 0}
+    row: dict = {
+        "domain": urlsplit(base).netloc, "country": a.country, "name": a.name,
+        "outlet_type": a.outlet_type, "languages": a.lang, "screened_at": datetime.now().date().isoformat(),
+        "evidence_urls": [], "notes": [],
+    }
+
+    def get(url):
+        if budget["n"] >= a.max_requests:
+            row["notes"].append("request budget exhausted")
+            return None
+        budget["n"] += 1
+        r = _get(url)
+        row["evidence_urls"].append(url)
+        if r.get("stop_domain"):
+            row["stop_domain"] = True
+        return r
+
+    def finish(verdict):
+        row["verdict"] = verdict
+        row["requests"] = budget["n"]
+        line = json.dumps(row, ensure_ascii=False)
+        if a.out:
+            with open(a.out, "a") as fh:
+                fh.write(line + "\n")
+        print(line)
+
+    # robots
+    mode = c.robots_status(base)
+    st = c._state(c._origin(base))
+    budget["n"] += 1
+    row["evidence_urls"].append(f"{c._origin(base)}/robots.txt")
+    row["robots_mode"] = mode
+    row["robots_error"] = st.robots_error or None
+    text = st.robots_raw or ""
+    m = _TDM_RE.search(text)
+    row["tdm_reservation"] = bool(m)
+    row["tdm_snippet"] = text[max(0, m.start() - 80): m.end() + 80].strip() if m else None
+    row["robots_allows_home"] = c.allowed(base + "/")
+    if mode == "deny_all":
+        return finish("blocked_robots_unreachable" if st.robots_error else "blocked_robots")
+    if not row["robots_allows_home"]:
+        row["notes"].append("robots disallows / for our bot")
+
+    # homepage
+    home = get(base + "/")
+    if home is None or "_content" not in home:
+        row["home_status"] = None
+        row["notes"].append(f"home: {home and home.get('error')}")
+    else:
+        html = home["_content"][:400000].decode("utf-8", errors="replace")
+        row["home_status"] = home["status"]
+        row["home_final_url"] = home["final_url"]
+        row["challenge"] = bool(_CHALLENGE_RE.search(html)) and home["status"] in (403, 429, 503, 200) and len(html) < 60000
+        row["paywall_hint"] = (_PAYWALL_RE.search(html) or [None])[0]
+        if home["status"] in BLOCK_STATUSES or (row["challenge"] and home["status"] != 200):
+            return finish("blocked_http")
+    if row.get("stop_domain"):
+        return finish("blocked_http")
+
+    # sitemaps
+    cands = list(st.robots.sitemaps) if st.robots else []
+    row["robots_sitemaps"] = cands[:10]
+    if not cands:
+        cands = [base + "/sitemap.xml", base + "/sitemap_index.xml"]
+    children, urls, kinds = [], [], []
+    for sm in cands[:3]:
+        r = get(sm)
+        if not r or r.get("status") != 200 or "_content" not in r:
+            continue
+        try:
+            kind, ents = _parse_sitemap(_sitemap_bytes(r))
+        except Exception:
+            continue
+        kinds.append(kind)
+        (children if kind == "sitemapindex" else urls).extend(ents)
+        if len(children) > 50:
+            break
+    row["sitemap_found"] = bool(children or urls)
+    row["sitemap_children"] = len(children)
+    allys = [y for e in children + urls for y in _years(e)]
+    row["sitemap_year_min"] = min(allys) if allys else None
+    row["sitemap_year_max"] = max(allys) if allys else None
+
+    # 표본 기사: 최신 1건 + 가장 오래된 하위 사이트맵 1건
+    def pick_from(child):
+        r = get(child["loc"])
+        if not r or r.get("status") != 200 or "_content" not in r:
+            return None
+        try:
+            kind, ents = _parse_sitemap(_sitemap_bytes(r))
+        except Exception:
+            return None
+        if kind == "sitemapindex" and ents:
+            return pick_from(ents[0])
+        ents = [e for e in ents if not re.search(r"\.(jpg|png|xml)(\?|$)|/(tag|category|author|video)s?/", e["loc"])]
+        return ents[0]["loc"] if ents else None
+
+    def sample(url, key):
+        if not url:
+            return
+        r = get(url)
+        if r and r.get("status") == 200 and "_content" in r:
+            e = _extract(r["_content"], r["final_url"])
+            row[key] = {"url": url, "date": e.get("date"), "text_chars": e.get("text_chars"), "title": (e.get("title") or "")[:120]}
+        else:
+            row[key] = {"url": url, "status": r and r.get("status"), "error": r and r.get("error")}
+
+    newest_url = oldest_url = None
+    if urls:
+        newest_url = urls[0]["loc"]
+    if children:
+        dated = [(min(_years(ch)) if _years(ch) else None, _trailing_num(ch["loc"]), ch) for ch in children]
+        if any(d[0] for d in dated):
+            dated = [d for d in dated if d[0]]
+            oldest = min(dated, key=lambda d: (d[0], d[1]))[2]
+            newest = max(dated, key=lambda d: (d[0], d[1]))[2]
+        else:
+            oldest = min(dated, key=lambda d: d[1])[2]
+            newest = max(dated, key=lambda d: d[1])[2]
+        newest_url = newest_url or pick_from(newest)
+        if oldest is not newest:
+            oldest_url = pick_from(oldest)
+    sample(newest_url, "sample_newest")
+    sample(oldest_url, "sample_oldest")
+
+    od = (row.get("sample_oldest") or {}).get("date") or ""
+    row["archive_year_verified"] = int(od[:4]) if od[:4].isdigit() else None
+    nw = row.get("sample_newest") or {}
+    row["extract_ok_newest"] = bool(nw.get("text_chars", 0) >= 300 and nw.get("date"))
+
+    if row["tdm_reservation"]:
+        return finish("tdm_reserved")
+    if not row["sitemap_found"]:
+        return finish("no_sitemap")
+    depth = row["archive_year_verified"] or row["sitemap_year_min"]
+    if depth is None:
+        return finish("sitemap_undated")
+    return finish("sitemap_deep" if depth <= 2015 else "sitemap_mid" if depth <= 2020 else "sitemap_recent_only")
 
 
 def cmd_extract(a) -> None:
@@ -334,6 +505,17 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--match", default="prefix", choices=["exact", "prefix", "host", "domain"])
     p.add_argument("--limit", type=int, default=50)
     p.set_defaults(fn=cmd_wayback)
+
+    p = sub.add_parser("screen", help="언론사 1곳 경량 선별 (요청 상한 --max-requests)")
+    p.add_argument("url")
+    p.add_argument("--country", required=True)
+    p.add_argument("--name", required=True)
+    p.add_argument("--outlet-type", required=True,
+                   choices=["wire", "national_daily", "regional_daily", "broadcaster", "online"])
+    p.add_argument("--lang", required=True, help="쉼표 구분 ISO 639-1")
+    p.add_argument("--max-requests", type=int, default=10)
+    p.add_argument("--out", help="결과 JSONL을 이 파일에 덧붙임")
+    p.set_defaults(fn=cmd_screen)
 
     p = sub.add_parser("validate")
     p.add_argument("files", nargs="+")
