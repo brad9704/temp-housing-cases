@@ -7,6 +7,7 @@
 - route_mid     : 목록화 경로 확인, 2016~2020년부터
 - route_recent  : 사이트맵이 2021년 이후분만 (과거 경로 미확인)
 - route_unknown : 접근은 되지만 사이트맵 없음·날짜 불명 (수동 확인 필요)
+- route_alt     : 사이트맵 밖 목록화 경로(순번 ID·날짜 아카이브)를 실제 요청으로 확인 (screening_followups.csv)
 - wayback_only  : 상세 프로파일에서 Wayback으로만 목록화 가능 판정
 - no_route      : 접근은 되지만 기준 기간 기사 목록화 경로 없음 (상세 프로파일 판정)
 - blocked       : robots·HTTP 차단·연결 불가·TDM 유보·유료벽
@@ -81,7 +82,8 @@ def from_screen(r: dict) -> dict:
     }
 
 
-def build(screen_files: list[str], profiles_dir: str = "registry/outlet_profiles") -> list[dict]:
+def build(screen_files: list[str], profiles_dir: str = "registry/outlet_profiles",
+          followups: str = "registry/screening_followups.csv") -> list[dict]:
     rows: dict[str, dict] = {}
     for p in sorted(Path(profiles_dir).glob("*.json")):
         row = from_profile(json.loads(p.read_text()))
@@ -94,6 +96,15 @@ def build(screen_files: list[str], profiles_dir: str = "registry/outlet_profiles
             # 상세 프로파일이 있으면 그쪽이 우선. 같은 도메인을 다시 선별했으면 마지막 결과
             if rows.get(row["domain"], {}).get("source") != "profile":
                 rows[row["domain"]] = row
+    fu = Path(followups)
+    if fu.exists():
+        for f in csv.DictReader(fu.open()):
+            r = rows.get(f["domain"])
+            if r and r["collectability"] not in ("blocked", "route_deep"):
+                r["collectability"] = "route_alt"
+                r["archive_year"] = int(f["year_verified"])
+                r["evidence_url"] = f["evidence_url"]
+                r["notes"] = f"{f['alt_route']}: {f['note']}"
     return sorted(rows.values(), key=lambda r: (r["country"], r["domain"]))
 
 
