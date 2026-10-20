@@ -1,0 +1,121 @@
+import http.server
+import random
+import threading
+import time
+
+import pytest
+
+from collectors.http import CrawlConfig, PoliteClient, RobotsDisallowed
+
+SEEN = {"ua": [], "times": [], "hits_429": 0}
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        SEEN["ua"].append(self.headers.get("User-Agent"))
+        SEEN["times"].append((self.path, time.monotonic()))
+        if self.path == "/robots.txt":
+            body = b"User-agent: TestBot\nDisallow: /private/\nCrawl-delay: 0.5\n"
+            self.send_response(200)
+        elif self.path == "/limited" and SEEN["hits_429"] == 0:
+            SEEN["hits_429"] += 1
+            self.send_response(429)
+            self.send_header("Retry-After", "1")
+            body = b""
+        else:
+            self.send_response(200)
+            body = b"ok"
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+@pytest.fixture(scope="module")
+def server():
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    yield f"http://127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+
+
+@pytest.fixture
+def client():
+    cfg = CrawlConfig(
+        user_agent="TestBot/0.1",
+        bot_token="TestBot",
+        min_delay=0.2,
+        max_delay=0.3,
+        max_retries=3,
+        timeout=5,
+        backoff_base=0.1,
+    )
+    return PoliteClient(cfg, rng=random.Random(0))
+
+
+def test_honest_user_agent_sent(server, client):
+    client.fetch(f"{server}/a")
+    assert all(ua == "TestBot/0.1" for ua in SEEN["ua"])
+
+
+def test_robots_disallow(server, client):
+    with pytest.raises(RobotsDisallowed):
+        client.fetch(f"{server}/private/x")
+
+
+def test_crawl_delay_overrides_jitter(server, client):
+    SEEN["times"].clear()
+    client.fetch(f"{server}/b")
+    client.fetch(f"{server}/c")
+    ts = [t for p, t in SEEN["times"] if p in ("/b", "/c")]
+    assert ts[1] - ts[0] >= 0.5  # robots Crawl-delay 0.5 > jitter 0.2~0.3
+
+
+def test_retry_after_respected(server, client):
+    SEEN["times"].clear()
+    r = client.fetch(f"{server}/limited")
+    assert r.status == 200 and r.attempts == 2
+    ts = [t for p, t in SEEN["times"] if p == "/limited"]
+    assert ts[1] - ts[0] >= 1.0
+
+
+def test_env_accepts_bare_bot_name(monkeypatch):
+    monkeypatch.setenv("CRAWL_USER_AGENT", "UNISTDisasterHousingBot/0.1")
+    monkeypatch.setenv("CRAWL_BOT_TOKEN", "UNISTDisasterHousingBot")
+    assert CrawlConfig.from_env().user_agent == "UNISTDisasterHousingBot/0.1"
+
+
+TOKEN = "UNISTDisasterHousingBot"
+
+
+@pytest.mark.parametrize("ua", [
+    "Mozilla/5.0 (compatible; UNISTDisasterHousingBot/0.1)",
+    "Mozilla/5.0 (compatible; UNISTDisasterHousingBot/0.1; +https://example.org/bot)",
+])
+def test_googlebot_style_format_allowed(monkeypatch, ua):
+    monkeypatch.setenv("CRAWL_USER_AGENT", ua)
+    monkeypatch.setenv("CRAWL_BOT_TOKEN", TOKEN)
+    assert CrawlConfig.from_env().user_agent == ua
+
+
+@pytest.mark.parametrize("ua", [
+    "Mozilla/5.0 UNISTDisasterHousingBot",                                              # 비표준 Mozilla
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0 UNISTDisasterHousingBot",   # 브라우저 위장
+    "Mozilla/5.0 (compatible; Googlebot/2.1; UNISTDisasterHousingBot)",                 # 구글봇 사칭
+    "Mozilla/5.0 (compatible; UNISTDisasterHousingBot/0.1; Yeti)",                      # 네이버 크롤러 사칭
+])
+def test_spoofing_rejected(monkeypatch, ua):
+    monkeypatch.setenv("CRAWL_USER_AGENT", ua)
+    monkeypatch.setenv("CRAWL_BOT_TOKEN", TOKEN)
+    with pytest.raises(RuntimeError):
+        CrawlConfig.from_env()
+
+
+def test_env_rejects_missing_token(monkeypatch):
+    monkeypatch.setenv("CRAWL_USER_AGENT", "SomethingElse/1.0")
+    monkeypatch.setenv("CRAWL_BOT_TOKEN", "UNISTDisasterHousingBot")
+    with pytest.raises(RuntimeError):
+        CrawlConfig.from_env()

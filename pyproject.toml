@@ -1,0 +1,29 @@
+[project]
+name = "temp-housing-cases"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "curl_cffi",
+    "protego",
+    "python-dotenv",
+    "trafilatura",
+    "ultimate-sitemap-parser",
+    "regex",
+    "pyyaml",
+    "duckdb",
+    "pyarrow",
+    "zstandard",
+    "datasketch",
+    "pydantic>=2",
+    "openai",
+    "krippendorff",
+]
+
+[project.optional-dependencies]
+js = ["playwright"]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

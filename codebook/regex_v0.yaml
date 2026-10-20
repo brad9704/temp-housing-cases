@@ -1,0 +1,108 @@
+# 정규식 사전 v0 (Python `regex` 모듈 기준)
+# tier1: 단독 통과 (특이 용어)
+# tier2: 같은 문단 또는 window 글자 수 안에 disaster 용어가 있을 때만 통과
+# stage_hint: Quarantelli 단계 힌트 (최종 판정은 LLM 분류 단계)
+# 모든 항목은 v0 초안이며 재현율 감사로 확장한다.
+
+settings:
+  window_chars: 300
+  flags: "IGNORECASE"
+
+ko:
+  normalize: [nfkc]
+  tier1:
+    - {pattern: '임시\s?조립\s?주택', stage_hint: temporary_housing}
+    - {pattern: '응급\s?가설\s?주택', stage_hint: temporary_housing}
+    - {pattern: '이재민\s?(임시\s?)?주택', stage_hint: temporary_housing}
+  tier2:
+    - {pattern: '임시\s?주거\s?시설', stage_hint: temporary_sheltering}  # 재해구호법상 대피시설 포함
+    - {pattern: '컨테이너\s?(주택|숙소|하우스|마을)', stage_hint: temporary_housing}
+    - {pattern: '모듈(러)?\s?주택', stage_hint: temporary_housing}
+    - {pattern: '(대피소|구호소|텐트촌|텐트)', stage_hint: emergency_sheltering}
+  disaster: '(지진|홍수|수해|산불|태풍|폭우|이재민|피해\s?주민|여진)'
+
+ja:
+  normalize: [nfkc]
+  tier1:
+    - {pattern: '(応急)?仮設住宅', stage_hint: temporary_housing}
+    - {pattern: 'みなし仮設', stage_hint: temporary_housing}
+    - {pattern: '仮設(団地|住まい)', stage_hint: temporary_housing}
+  tier2:
+    - {pattern: '借(り)?上げ(型)?(住宅|仮設)', stage_hint: temporary_housing}
+    - {pattern: 'トレーラーハウス', stage_hint: temporary_housing}
+    - {pattern: '避難所', stage_hint: emergency_sheltering}
+  disaster: '(震災|地震|豪雨|津波|被災|原発事故|台風)'
+
+tr:
+  normalize: [nfkc, turkish_lower]
+  tier1:
+    - {pattern: 'konteyner\s?kent\w*', stage_hint: temporary_housing}
+    - {pattern: 'prefabrik\s?(konut|ev)\w*', stage_hint: temporary_housing}
+    - {pattern: 'geçici\s?(barınma|konut|yerleşim)\w*', stage_hint: temporary_housing}
+  tier2:
+    - {pattern: 'çadır\s?kent\w*', stage_hint: emergency_sheltering}
+    - {pattern: 'konteyner\w*', stage_hint: temporary_housing}
+    - {pattern: 'çadır\w*', stage_hint: emergency_sheltering}
+  disaster: '(deprem\w*|depremzede\w*|afetzede\w*|sel\b|afet\w*)'
+
+it:
+  normalize: [nfkc]
+  tier1:
+    - {pattern: 'soluzion[ei]\s+abitativ[ae]\s+(di|in)\s+emergenza', stage_hint: temporary_housing}
+    - {pattern: 'moduli\s+abitativi\s+provvisori', stage_hint: temporary_housing}
+    - {pattern: 'progetto\s+c\.?\s?a\.?\s?s\.?\s?e\.?', stage_hint: temporary_housing}
+  tier2:
+    - {pattern: '\bSAE\b', stage_hint: temporary_housing}   # 약어 충돌, 대소문자 구분 필요
+    - {pattern: '\bMAP\b', stage_hint: temporary_housing}   # 약어 충돌, 대소문자 구분 필요
+    - {pattern: 'casett[ae]\s+(prefabbricat[ae]|di\s+legno)', stage_hint: temporary_housing}
+    - {pattern: 'container', stage_hint: temporary_housing}
+    - {pattern: 'tendopoli', stage_hint: emergency_sheltering}
+  disaster: '(terremot\w*|sism\w*|sfollat\w*|alluvion\w*|terremotat\w*)'
+  case_sensitive_patterns: ['\bSAE\b', '\bMAP\b']
+
+en:
+  normalize: [nfkc]
+  tier1:
+    - {pattern: 'FEMA\s+(travel\s+)?(trailer|mobile\s+home|housing\s+unit)s?', stage_hint: temporary_housing}
+    - {pattern: 'pod\s+village', stage_hint: temporary_housing}
+    - {pattern: '(disaster|emergency)\s+temporary\s+housing', stage_hint: temporary_housing}
+  tier2:
+    - {pattern: 'temporary\s+(housing|accommodation|homes?)', stage_hint: temporary_housing}
+    - {pattern: '(transitional|interim|emergency)\s+housing', stage_hint: temporary_housing}  # 노숙인 정책 오탐 많음
+    - {pattern: '(group|trailer)\s+sites?', stage_hint: temporary_housing}
+    - {pattern: '(modular|manufactured)\s+homes?', stage_hint: temporary_housing}
+    - {pattern: '(evacuation\s+)?(centre|center|shelter)s?', stage_hint: emergency_sheltering}
+  disaster: '(earthquake|flood\w*|hurricane|cyclone|wildfire|bushfire|tornado|displaced|evacuee\w*|survivors?)'
+
+es:
+  normalize: [nfkc]
+  tier1:
+    - {pattern: 'mediaguas?', stage_hint: temporary_housing}
+    - {pattern: 'viviendas?\s+(de\s+emergencia|transitorias?|provisorias?)', stage_hint: temporary_housing}
+    - {pattern: 'aldeas?\s+(de\s+emergencia|transitorias?)', stage_hint: temporary_housing}
+  tier2:
+    - {pattern: 'aldeas?', stage_hint: temporary_housing}
+    - {pattern: 'campamentos?', stage_hint: temporary_housing}
+    - {pattern: 'albergues?', stage_hint: emergency_sheltering}
+  disaster: '(terremoto|sismo|maremoto|tsunami|damnificad\w*|incendio\w*|aluvi[oó]n\w*)'
+
+fr:
+  normalize: [nfkc]
+  tier1:
+    - {pattern: '(habitat|logements?|habitations?)\s+(provisoires?|temporaires?)', stage_hint: temporary_housing}
+  tier2:
+    - {pattern: 'pr[ée]fabriqu[ée]s?', stage_hint: temporary_housing}
+    - {pattern: 'relogement', stage_hint: temporary_housing}
+    - {pattern: 'tentes?', stage_hint: emergency_sheltering}
+  disaster: '(s[ée]isme|tremblement\s+de\s+terre|sinistr[ée]s?|inondations?)'
+
+ar:
+  normalize: [nfkc, arabic_alef, arabic_taa_marbuta, strip_tashkeel]
+  tier1:
+    - {pattern: '(مساكن|سكن|منازل|بيوت)\s?(مؤقته|المؤقته)', stage_hint: temporary_housing}
+  tier2:
+    - {pattern: '(منازل|بيوت|مساكن)\s?(جاهزه|متنقله|مسبقه\s?الصنع)', stage_hint: temporary_housing}
+    - {pattern: '(خيام|خيمه|مخيم\w*)', stage_hint: emergency_sheltering}
+    - {pattern: 'ايواء', stage_hint: temporary_sheltering}
+  disaster: '(زلزال|الزلزال|المتضررين|المنكوبين|ضحايا)'
+  # 패턴은 정규화 후 텍스트 기준(ة→ه, أإآ→ا)
