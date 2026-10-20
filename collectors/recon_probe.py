@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import gzip
 import json
 import re
@@ -239,7 +240,18 @@ def cmd_sitemap(a) -> None:
 
 
 # ---- screen: 언론사 1곳 경량 선별 (요청 상한 있음) ---------------------------------
-_TDM_RE = re.compile(r"text\s*(and|&)\s*data\s*mining|\bTDM\b|data[- ]?mining|AI[- ]?training|machine learning|scrap(e|ing)|크롤링\s*금지|무단\s*수집", re.I)
+# 명시적 TDM·AI 이용 유보: 특정 봇이 아니라 이용 목적 자체를 금지하는 문구
+_TDM_EXPLICIT_RE = re.compile(
+    r"text\s*(and|&)\s*data[- ]?mining|\bTDM\b|data[- ]?min(e|ing)|§\s*4[24]\s*[bh]|\bDSM\b|Nutzungsvorbehalt|"
+    r"reservation of rights|reserves? the right[^.\n]{0,80}(mining|AI|machine)|"
+    r"not (be )?(used|permitted)[^\n]{0,120}(LLM|large language|machine learning|artificial intelligence|\bAI\b)|"
+    r"(AI|artificial intelligence)[- ]?(training|use)[^\n]{0,80}(not permitted|prohibited|forbidden|no autorizad|interdit|vietat|verboten)|"
+    r"no autorizad|no scraping|systematic extraction|scrap(e|ing)[^\n]{0,80}(prohibited|not permitted|forbidden|prohibido|interdit|vietato|dilarang)",
+    re.I)
+_AI_BOT_RE = re.compile(r"^\s*user-agent:\s*(GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-Web|anthropic-ai|Claude-User|Claude-SearchBot|"
+                        r"Google-Extended|CCBot|cohere-ai|PerplexityBot|Bytespider|Applebot-Extended|meta-externalagent|MistralAI|Amazonbot)",
+                        re.I | re.M)
+_TDM_RE = _TDM_EXPLICIT_RE
 _CHALLENGE_RE = re.compile(r"cf-chl|challenge-platform|Just a moment|Attention Required|captcha|px-captcha|_Incapsula_|datadome", re.I)
 _PAYWALL_RE = re.compile(r"paywall|piano\.io|tinypass|poool|subscriber[- ]only|premium[- ]content|metered|会員限定|유료\s*회원|abbonati|suscríbete|abonnez-vous|abone\s*ol", re.I)
 _YEAR_RE = re.compile(r"(?<!\d)(199\d|20[0-3]\d)(?!\d)")
@@ -313,9 +325,10 @@ def cmd_screen(a) -> None:
     row["robots_mode"] = mode
     row["robots_error"] = st.robots_error or None
     text = st.robots_raw or ""
-    m = _TDM_RE.search(text)
-    row["tdm_reservation"] = bool(m)
+    m = _TDM_EXPLICIT_RE.search(text)
+    row["tdm_reservation"] = bool(m)  # 명시적 유보만
     row["tdm_snippet"] = text[max(0, m.start() - 80): m.end() + 80].strip() if m else None
+    row["ai_bots_named"] = sorted({x.lower() for x in _AI_BOT_RE.findall(text)})
     row["robots_allows_home"] = c.allowed(base + "/")
     if mode == "deny_all":
         return finish("blocked_robots_unreachable" if st.robots_error else "blocked_robots")
@@ -333,7 +346,7 @@ def cmd_screen(a) -> None:
         row["home_final_url"] = home["final_url"]
         row["challenge"] = bool(_CHALLENGE_RE.search(html)) and home["status"] in (403, 429, 503, 200) and len(html) < 60000
         row["paywall_hint"] = (_PAYWALL_RE.search(html) or [None])[0]
-        if home["status"] in BLOCK_STATUSES or (row["challenge"] and home["status"] != 200):
+        if home["status"] in BLOCK_STATUSES + (402, 406) or (row["challenge"] and home["status"] != 200):
             return finish("blocked_http")
     if row.get("stop_domain"):
         return finish("blocked_http")
@@ -359,7 +372,7 @@ def cmd_screen(a) -> None:
     row["sitemap_found"] = bool(children or urls)
     row["sitemap_children"] = len(children)
     this_year = datetime.now().year
-    allys = [y for e in children + urls for y in _years(e) if 1995 <= y <= this_year + 1]
+    allys = [y for e in children + urls for y in _years(e) if 1995 <= y <= this_year]
     row["sitemap_year_min"] = min(allys) if allys else None
     row["sitemap_year_max"] = max(allys) if allys else None
 
@@ -491,6 +504,48 @@ def cmd_validate(a) -> None:
     sys.exit(1 if bad else 0)
 
 
+def cmd_screen_batch(a) -> None:
+    """후보 CSV(domain,country,name,outlet_type,languages)를 도메인 간 병렬로 선별.
+
+    같은 도메인은 PoliteClient가 직렬화하므로 워커 수와 무관하게 도메인당 동시 요청은 1건이다.
+    이미 --out에 있는 도메인은 건너뛴다(--force로 재선별).
+    """
+    import subprocess
+    from concurrent.futures import ThreadPoolExecutor
+
+    rows = list(csv.DictReader(open(a.candidates)))
+    done = set()
+    if Path(a.out).exists() and not a.force:
+        done = {json.loads(l)["domain"] for l in Path(a.out).read_text().splitlines() if l.strip()}
+    todo, seen = [], set()
+    for r in rows:
+        d = urlsplit(r["domain"] if "//" in r["domain"] else "https://" + r["domain"]).netloc
+        if d in done or d in seen:
+            continue
+        seen.add(d)
+        todo.append((d, r))
+    print(f"{len(todo)} to screen ({len(done)} already in {a.out})", file=sys.stderr)
+
+    def run(item):
+        d, r = item
+        cmd = [sys.executable, "-m", "collectors.recon_probe", "screen", f"https://{d}",
+               "--country", r["country"], "--name", r["name"], "--outlet-type", r["outlet_type"],
+               "--lang", r.get("languages") or "", "--max-requests", str(a.max_requests), "--out", a.out]
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=a.timeout)
+        if p.returncode != 0:
+            err = {"domain": d, "country": r["country"], "name": r["name"], "outlet_type": r["outlet_type"],
+                   "languages": r.get("languages") or "", "screened_at": datetime.now().date().isoformat(),
+                   "verdict": "screen_error", "notes": [p.stderr.strip().splitlines()[-1][:300] if p.stderr.strip() else "error"]}
+            with open(a.out, "a") as fh:
+                fh.write(json.dumps(err, ensure_ascii=False) + "\n")
+        return d, p.returncode
+
+    with ThreadPoolExecutor(max_workers=a.workers) as ex:
+        for i, (d, rc) in enumerate(ex.map(run, todo), 1):
+            if i % 20 == 0 or rc:
+                print(f"[{i}/{len(todo)}] {d} rc={rc}", file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="recon_probe")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -536,6 +591,15 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--max-requests", type=int, default=10)
     p.add_argument("--out", help="결과 JSONL을 이 파일에 덧붙임")
     p.set_defaults(fn=cmd_screen)
+
+    p = sub.add_parser("screen-batch", help="후보 CSV 일괄 선별 (도메인 간 병렬)")
+    p.add_argument("candidates")
+    p.add_argument("--out", required=True)
+    p.add_argument("--workers", type=int, default=12)
+    p.add_argument("--max-requests", type=int, default=10)
+    p.add_argument("--timeout", type=int, default=900)
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(fn=cmd_screen_batch)
 
     p = sub.add_parser("validate")
     p.add_argument("files", nargs="+")
