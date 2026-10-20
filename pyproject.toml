@@ -16,6 +16,7 @@ dependencies = [
     "datasketch",
     "pydantic>=2",
     "openai",
+    "httpx",
     "krippendorff",
 ]
 
@@ -27,3 +28,4 @@ dev = ["pytest"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
