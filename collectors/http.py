@@ -120,6 +120,7 @@ class _DomainState:
     robots: Protego | None = None
     robots_mode: str = "unknown"  # parsed | allow_all | deny_all
     robots_raw: str = ""
+    robots_error: str = ""  # deny_all 판정 사유 (5xx 상태 또는 예외)
     last_wait: float = 0.0
 
 
@@ -217,8 +218,10 @@ class PoliteClient:
                     mode = "allow_all"
                 else:
                     mode = "deny_all"
-            except Exception:
+                    st.robots_error = f"HTTP {r.status_code}"
+            except Exception as e:
                 mode = "deny_all"
+                st.robots_error = f"{type(e).__name__}: {e}"[:300]
             self._apply_robots(st, mode, text)
             self._schedule_next(st)
             cache = self._state_file(origin, "robots.json")

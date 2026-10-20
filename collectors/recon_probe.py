@@ -160,6 +160,7 @@ def cmd_robots(a) -> None:
     res = {
         "origin": c._origin(base),
         "mode": mode,
+        "robots_error": st.robots_error or None,
         "crawl_delay_for_bot": st.robots.crawl_delay(c.cfg.bot_token) if st.robots else None,
         "sitemaps": list(st.robots.sitemaps) if st.robots else [],
         "can_fetch": {p: c.allowed(urljoin(base, p)) for p in (a.path or ["/"])},
