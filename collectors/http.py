@@ -61,6 +61,18 @@ def validate_user_agent(ua: str, token: str) -> None:
         raise RuntimeError(f"다른 크롤러 이름이 포함되어 있습니다({hit}). 사칭은 금지입니다.")
 
 
+def parse_domain_overrides(spec: str) -> dict[str, tuple[float, float, float]]:
+    """"web.archive.org=5:8:120,example.com=3:6:60" -> {host: (min, max, timeout)}"""
+    out = {}
+    for item in filter(None, (x.strip() for x in spec.split(","))):
+        host, _, vals = item.partition("=")
+        mn, mx, to = (float(v) for v in vals.split(":"))
+        if mx < mn:
+            raise RuntimeError(f"CRAWL_DOMAIN_OVERRIDES 오류: {item}")
+        out[host.strip().lower()] = (mn, mx, to)
+    return out
+
+
 class RobotsDisallowed(Exception):
     """robots.txt가 해당 URL 수집을 금지함."""
 
@@ -81,6 +93,12 @@ class CrawlConfig:
     backoff_cap: float = 300.0
     state_dir: str | None = None
     robots_ttl: float = 86400.0
+    # host -> (min_delay, max_delay, timeout). 기본값보다 느슨하게만 쓸 수 있다.
+    domain_overrides: dict[str, tuple[float, float, float]] = field(default_factory=dict)
+
+    def for_host(self, host: str) -> tuple[float, float, float]:
+        mn, mx, to = self.domain_overrides.get(host, (self.min_delay, self.max_delay, self.timeout))
+        return max(mn, self.min_delay), max(mx, self.max_delay), max(to, self.timeout)
 
     @classmethod
     def from_env(cls) -> "CrawlConfig":
@@ -95,6 +113,7 @@ class CrawlConfig:
             max_retries=int(os.environ.get("CRAWL_MAX_RETRIES", 3)),
             timeout=float(os.environ.get("CRAWL_TIMEOUT_SEC", 30.0)),
             state_dir=os.environ.get("CRAWL_STATE_DIR", "data/cache/crawl_state") or None,
+            domain_overrides=parse_domain_overrides(os.environ.get("CRAWL_DOMAIN_OVERRIDES", "")),
         )
         if cfg.min_delay < 1.0 or cfg.max_delay < cfg.min_delay:
             raise RuntimeError("딜레이 설정 오류: 1 <= MIN_DELAY <= MAX_DELAY 이어야 합니다.")
@@ -120,6 +139,7 @@ class _DomainState:
     robots: Protego | None = None
     robots_mode: str = "unknown"  # parsed | allow_all | deny_all
     robots_raw: str = ""
+    host_cfg: tuple[float, float, float] | None = None
     robots_error: str = ""  # deny_all 판정 사유 (5xx 상태 또는 예외)
     last_wait: float = 0.0
 
@@ -139,7 +159,7 @@ class PoliteClient:
     def _state(self, origin: str) -> _DomainState:
         with self._domains_lock:
             if origin not in self._domains:
-                self._domains[origin] = _DomainState()
+                self._domains[origin] = _DomainState(host_cfg=self._host_cfg(origin))
             return self._domains[origin]
 
     @staticmethod
@@ -147,8 +167,12 @@ class PoliteClient:
         p = urlsplit(url)
         return f"{p.scheme}://{p.netloc}"
 
+    def _host_cfg(self, origin: str) -> tuple[float, float, float]:
+        return self.cfg.for_host(urlsplit(origin).hostname or "")
+
     def _jitter_delay(self, st: _DomainState) -> float:
-        d = self.rng.uniform(self.cfg.min_delay, self.cfg.max_delay)
+        mn, mx, _ = st.host_cfg or (self.cfg.min_delay, self.cfg.max_delay, self.cfg.timeout)
+        d = self.rng.uniform(mn, mx)
         if st.robots is not None:
             cd = st.robots.crawl_delay(self.cfg.bot_token)
             if cd:
@@ -211,7 +235,7 @@ class PoliteClient:
                 return
             text = ""
             try:
-                r = self.session.get(f"{origin}/robots.txt", timeout=self.cfg.timeout, allow_redirects=True)
+                r = self.session.get(f"{origin}/robots.txt", timeout=st.host_cfg[2], allow_redirects=True)
                 if r.status_code == 200:
                     mode, text = "parsed", r.text
                 elif 400 <= r.status_code < 500:
@@ -298,7 +322,7 @@ class PoliteClient:
             with self._turn(origin, st):
                 waited += st.last_wait
                 try:
-                    r = self.session.get(url, timeout=self.cfg.timeout, allow_redirects=True)
+                    r = self.session.get(url, timeout=st.host_cfg[2], allow_redirects=True)
                 except Exception as e:  # 네트워크 오류
                     last_err = e
                     self._schedule_next(st, self._backoff(attempt))

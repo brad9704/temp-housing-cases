@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from collectors.http import CrawlConfig, PoliteClient, RobotsDisallowed
+from collectors.http import CrawlConfig, PoliteClient, RobotsDisallowed, parse_domain_overrides
 
 SEEN = {"ua": [], "times": [], "hits_429": 0}
 
@@ -150,3 +150,22 @@ def test_no_concurrent_requests_same_domain(server, tmp_path):
     ts = sorted(t for p, t in SEEN["times"] if p.startswith("/p"))
     assert len(ts) == 3
     assert all(b - a >= 0.5 for a, b in zip(ts, ts[1:]))
+
+
+def test_domain_override_slows_only_that_host(server):
+    cfg = _cfg(None)
+    cfg.state_dir = None
+    cfg.domain_overrides = parse_domain_overrides("127.0.0.1=1.0:1.1:9")
+    c = PoliteClient(cfg, rng=random.Random(3))
+    SEEN["times"].clear()
+    c.fetch(f"{server}/f")
+    c.fetch(f"{server}/g")
+    ts = [t for p, t in SEEN["times"] if p in ("/f", "/g")]
+    assert ts[1] - ts[0] >= 1.0
+    assert cfg.for_host("other.example") == (0.2, 0.3, 5)
+
+
+def test_override_cannot_be_faster_than_default():
+    cfg = _cfg(None)
+    cfg.domain_overrides = parse_domain_overrides("x.org=0.01:0.02:1")
+    assert cfg.for_host("x.org") == (0.2, 0.3, 5)
