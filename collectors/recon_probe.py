@@ -332,6 +332,11 @@ def cmd_screen(a) -> None:
     row["robots_allows_home"] = c.allowed(base + "/")
     if mode == "deny_all":
         return finish("blocked_robots_unreachable" if st.robots_error else "blocked_robots")
+    cd = st.robots.crawl_delay(c.cfg.bot_token) if st.robots else None
+    row["crawl_delay"] = float(cd) if cd else None
+    if cd and float(cd) > a.max_crawl_delay:
+        # 기다리지 않는다. 수집 시에는 이 값을 따라야 하므로 사실상 수집 불가로 기록
+        return finish("crawl_delay_excessive")
     if not row["robots_allows_home"]:
         row["notes"].append("robots disallows / for our bot")
 
@@ -589,6 +594,7 @@ def main(argv: list[str] | None = None) -> None:
                    choices=["wire", "national_daily", "regional_daily", "broadcaster", "online"])
     p.add_argument("--lang", required=True, help="쉼표 구분 ISO 639-1")
     p.add_argument("--max-requests", type=int, default=10)
+    p.add_argument("--max-crawl-delay", type=float, default=60.0)
     p.add_argument("--out", help="결과 JSONL을 이 파일에 덧붙임")
     p.set_defaults(fn=cmd_screen)
 

@@ -29,7 +29,7 @@ COLUMNS = [
 
 _SCREEN_CLASS = {
     "blocked_robots": "blocked", "blocked_robots_unreachable": "blocked", "blocked_http": "blocked",
-    "tdm_reserved": "blocked", "no_sitemap": "route_unknown", "sitemap_undated": "route_unknown",
+    "tdm_reserved": "blocked", "crawl_delay_excessive": "blocked", "screen_error": "route_unknown", "no_sitemap": "route_unknown", "sitemap_undated": "route_unknown",
     "sitemap_deep": "route_deep", "sitemap_mid": "route_mid", "sitemap_recent_only": "route_recent",
 }
 
