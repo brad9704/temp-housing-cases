@@ -60,7 +60,17 @@ def from_profile(d: dict) -> dict:
 
 
 def from_screen(r: dict) -> dict:
-    year = r.get("archive_year_verified") or r.get("sitemap_year_min")
+    # 초기 버전 screen 결과도 같은 기준으로 재판정: 사이트맵 연도 우선, 이상값 제외, stop_domain은 차단
+    sm = r.get("sitemap_year_min")
+    sm = sm if sm and 1995 <= sm else None
+    year = sm or r.get("archive_year_verified")
+    verdict = r["verdict"]
+    if r.get("stop_domain") and not verdict.startswith("blocked"):
+        verdict = "blocked_http"
+    elif verdict.startswith("sitemap_") and verdict != "sitemap_undated":
+        verdict = {"route_deep": "sitemap_deep", "route_mid": "sitemap_mid", "route_recent": "sitemap_recent_only",
+                   "route_unknown": "sitemap_undated"}[_depth_class(year)]
+    r = {**r, "verdict": verdict}
     return {
         "domain": r["domain"], "country": r["country"], "name": r["name"], "outlet_type": r["outlet_type"],
         "languages": r["languages"], "source": "screen", "verdict": r["verdict"],

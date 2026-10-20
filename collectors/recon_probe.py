@@ -260,6 +260,18 @@ def _trailing_num(loc: str) -> int:
     return int(m.group(1)) if m else -1
 
 
+def _looks_like_article(loc: str) -> bool:
+    """홈·섹션·태그·이미지가 아닌 기사 URL로 보이는가 (휴리스틱)."""
+    p = urlsplit(loc)
+    path = p.path.rstrip("/")
+    if re.search(r"\.(jpg|jpeg|png|gif|xml|gz|pdf)$|/(tag|tags|category|categories|author|authors|video|videos|section|topic|topics)(/|$)", path, re.I):
+        return False
+    segs = [x for x in path.split("/") if x]
+    if not segs and not p.query:
+        return False
+    return bool(re.search(r"\d{3,}", loc)) or len(segs) >= 2 or len(segs[-1] if segs else "") > 25
+
+
 def cmd_screen(a) -> None:
     base = a.url if urlsplit(a.url).scheme else f"https://{a.url}"
     c = client()
@@ -282,6 +294,9 @@ def cmd_screen(a) -> None:
         return r
 
     def finish(verdict):
+        if row.get("stop_domain") and not verdict.startswith("blocked"):
+            row["notes"].append(f"stop_domain after partial screen (would be {verdict})")
+            verdict = "blocked_http"
         row["verdict"] = verdict
         row["requests"] = budget["n"]
         line = json.dumps(row, ensure_ascii=False)
@@ -343,7 +358,8 @@ def cmd_screen(a) -> None:
             break
     row["sitemap_found"] = bool(children or urls)
     row["sitemap_children"] = len(children)
-    allys = [y for e in children + urls for y in _years(e)]
+    this_year = datetime.now().year
+    allys = [y for e in children + urls for y in _years(e) if 1995 <= y <= this_year + 1]
     row["sitemap_year_min"] = min(allys) if allys else None
     row["sitemap_year_max"] = max(allys) if allys else None
 
@@ -358,7 +374,7 @@ def cmd_screen(a) -> None:
             return None
         if kind == "sitemapindex" and ents:
             return pick_from(ents[0])
-        ents = [e for e in ents if not re.search(r"\.(jpg|png|xml)(\?|$)|/(tag|category|author|video)s?/", e["loc"])]
+        ents = [e for e in ents if _looks_like_article(e["loc"])]
         return ents[0]["loc"] if ents else None
 
     def sample(url, key):
@@ -373,7 +389,8 @@ def cmd_screen(a) -> None:
 
     newest_url = oldest_url = None
     if urls:
-        newest_url = urls[0]["loc"]
+        arts = [e for e in urls if _looks_like_article(e["loc"])]
+        newest_url = arts[0]["loc"] if arts else None
     if children:
         dated = [(min(_years(ch)) if _years(ch) else None, _trailing_num(ch["loc"]), ch) for ch in children]
         if any(d[0] for d in dated):
@@ -392,13 +409,16 @@ def cmd_screen(a) -> None:
     od = (row.get("sample_oldest") or {}).get("date") or ""
     row["archive_year_verified"] = int(od[:4]) if od[:4].isdigit() else None
     nw = row.get("sample_newest") or {}
-    row["extract_ok_newest"] = bool(nw.get("text_chars", 0) >= 300 and nw.get("date"))
+    row["extract_ok_newest"] = bool((nw.get("text_chars") or 0) >= 300 and nw.get("date"))
 
     if row["tdm_reservation"]:
         return finish("tdm_reserved")
     if not row["sitemap_found"]:
         return finish("no_sitemap")
-    depth = row["archive_year_verified"] or row["sitemap_year_min"]
+    # 깊이는 사이트맵 연도 기준. 표본 기사 날짜가 사이트맵 최소 연도와 2년 이내면 검증된 것으로 표시
+    sm_min, ver = row["sitemap_year_min"], row["archive_year_verified"]
+    row["depth_verified"] = bool(sm_min and ver and abs(ver - sm_min) <= 2)
+    depth = sm_min or ver
     if depth is None:
         return finish("sitemap_undated")
     return finish("sitemap_deep" if depth <= 2015 else "sitemap_mid" if depth <= 2020 else "sitemap_recent_only")
