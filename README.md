@@ -10,7 +10,7 @@ The goal is coverage of problem *types*: every kind of problem that has occurred
 - **Facility type and stage are separate axes.** A school gym used as a shelter is an existing building in `temporary_sheltering`; a rented flat under a rental-subsidy scheme (e.g. Japan's *minashi kasetsu*) is an existing building in `temporary_housing`.
 - **Sources**
   1. News outlets: per country, one national daily and one broadcaster (core), plus one regional paper from the affected area (pilot probe).
-  2. Humanitarian documents: IFRC GO appeal documents, Shelter Cluster, Shelter Projects case studies; ReliefWeb once API access is approved.
+  2. Humanitarian documents: IFRC GO appeal documents, Shelter Cluster, Shelter Projects case studies; ReliefWeb (API access approved; its API host disallows crawlers in robots.txt, so it is used as an explicit, documented exception).
 - **Unit of analysis**: a claim in one article or document. Episode (site × problem type × period), site, and disaster tables are always derived and never overwrite source records.
 
 Disasters are defined from the collected texts. External disaster databases (EM-DAT etc.) are used only to normalise names and link records, not to discover events.
@@ -107,7 +107,9 @@ Every collection, filter, translation, and extraction record stores `code_commit
 - Recon done for the pilot countries (KR, JP, TR, IT, US, CL, MA, AU): 63 outlet profiles.
 - Lightweight screening done for 379 outlets across 64 countries.
 - IFRC GO metadata collected: 7,663 documents, 1,824 appeals, 157 countries.
-- Next: Shelter Cluster document listing, sitemap and Wayback collectors, recall audit of the v0 dictionary.
+- Shelter Cluster document list collected: 21,039 documents in 305 response groups.
+- ReliefWeb (approved API access): metadata for reports tagged "Shelter and Non-Food Items" (about 171,000) being collected within the daily call limit.
+- Next: document-text extraction for humanitarian sources, sitemap and Wayback news collectors, recall audit of the v0 dictionary.
 
 ## Limitations
 
