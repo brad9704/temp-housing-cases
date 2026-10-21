@@ -1,0 +1,24 @@
+# 언론사 표본 틀 (Wikidata). query.wikidata.org는 robots가 크롤러의 /sparql 접근을 막으므로
+# 사람이 https://query.wikidata.org 웹 UI에서 실행하고 결과를 CSV로 내려받는다.
+# 저장 위치(로컬, 커밋 안 함): registry/frames/wikidata_news_outlets_<YYYYMMDD>.csv (실행일을 파일명에 남긴다)
+# 시간 초과가 나면 VALUES ?type 의 항목을 나눠 여러 번 실행한다.
+#
+# 유형: Q11032 newspaper, Q1110794 daily newspaper, Q1153191 online newspaper,
+#       Q192283 news agency, Q15265344 broadcaster, Q1616075 television station, Q14350 radio station
+SELECT ?item ?itemLabel ?type ?cc ?website ?sitelinks
+       (GROUP_CONCAT(DISTINCT ?langCode; separator=",") AS ?langs)
+       (MIN(YEAR(?inception)) AS ?since)
+WHERE {
+  VALUES ?type { wd:Q11032 wd:Q1110794 wd:Q1153191 wd:Q192283 wd:Q15265344 wd:Q1616075 wd:Q14350 }
+  ?item wdt:P31 ?type ;
+        wdt:P856 ?website ;
+        wdt:P17 ?country ;
+        wikibase:sitelinks ?sitelinks .
+  ?country wdt:P297 ?cc .
+  FILTER NOT EXISTS { ?item wdt:P576 ?dissolved }          # 폐간·폐국 제외
+  OPTIONAL { ?item wdt:P407 ?lang . ?lang wdt:P218 ?langCode }
+  OPTIONAL { ?item wdt:P571 ?inception }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,[AUTO_LANGUAGE]". }
+}
+GROUP BY ?item ?itemLabel ?type ?cc ?website ?sitelinks
+ORDER BY ?cc DESC(?sitelinks)

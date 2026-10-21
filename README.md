@@ -49,12 +49,15 @@ This project collects only what sites allow, under an honest identity.
 ```
 collectors/   http.py (PoliteClient), recon_probe.py, pool.py, ifrc_go.py
 codebook/     regex dictionaries, schema
-registry/     outlets.csv, outlet_profiles/, screening.csv, frames/
-reports/      stage summaries (recon, regional probe, outlet pool)
+queries/      sampling-frame queries (e.g. Wikidata SPARQL, run manually)
 infra/llm/    llama-server launch script
 tests/        unit tests for the HTTP client and screening helpers
 data/         raw HTML (zstd), DuckDB, LLM caches — local only, not committed
+registry/     outlet registry, profiles, screening tables — local only, not committed
+reports/      stage summaries — local only, not committed
 ```
+
+This repository contains code only. Collected data, outlet registries, and reports stay on the research machine.
 
 ## Setup
 
@@ -102,7 +105,7 @@ Every collection, filter, translation, and extraction record stores `code_commit
 ## Status
 
 - Recon done for the pilot countries (KR, JP, TR, IT, US, CL, MA, AU): 63 outlet profiles.
-- Lightweight screening done for 379 outlets across 64 countries; the distribution is in `reports/outlet_pool.md`.
+- Lightweight screening done for 379 outlets across 64 countries.
 - IFRC GO metadata collected: 7,663 documents, 1,824 appeals, 157 countries.
 - Next: Shelter Cluster document listing, sitemap and Wayback collectors, recall audit of the v0 dictionary.
 
