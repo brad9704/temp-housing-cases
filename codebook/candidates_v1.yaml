@@ -1,0 +1,427 @@
+# 후보 용어 목록 v1 (CANDIDATES ONLY — 사전 변경 아님)
+# - regex_v0.yaml은 재현율 감사 결과로만 바뀐다(CLAUDE.md). 이 파일은 감사 표본 설계·v1 제안의 입력이다.
+# - 2026-10-21 범위 변경 반영: 주 분석 = emergency_sheltering + temporary_sheltering + temporary_housing.
+# - 모든 항목 source: knowledge (문헌·기사로 미검증). 채택 전 감사에서 정밀도/재현율 확인 필요.
+# - 패턴은 regex_v0.yaml 정규화 후 텍스트 기준: NFKC, IGNORECASE, tr은 turkish_lower(소문자 패턴),
+#   ar은 ة→ه, أإآ→ا, 무타슈킬(ى는 미정규화이므로 [يى]로 씀).
+# - tier1: 단독 통과 / tier2: disaster 용어 window(300자) 안에서만 통과 / cue: 필터에 쓰지 않음.
+# - 카테고리: shelter_operation(기존 건물·집단 대피) / prolonged(대피·이재 장기화) /
+#   existing_stock(기존 주택재고 활용 임시주거: 임대보조·호텔·가정위탁) / humanitarian(인도주의 부문 용어) /
+#   problem_cues(운영 문제 단서어: 분류 프롬프트·감사 표본 층화용, 필터 미사용)
+# - disaster_extra: 각 언어 disaster 정규식에 추가를 검토할 용어(대피 중심 범위 확장으로 필요).
+# - fp: 예상 오탐 원천. dup_v0: v0에 이미 있는 항목과 겹치면 표시.
+# - stage_hint는 힌트일 뿐이며 최종 단계 판정은 LLM 분류. 'ambiguous'는 하단 stage_ambiguity 참조.
+
+meta:
+  version: candidates_v1
+  created: 2026-10-21
+  status: unverified_candidates
+  base_dictionary: regex_v0.yaml
+  source_default: knowledge
+
+ko:
+  disaster_extra: '(대피\s?명령|피난|침수|산사태|화재\s?피해|재난)'
+  shelter_operation:
+    - {pattern: '이재민\s?(임시\s?)?(대피|주거|구호|수용)\s?(시설|소|장소)', tier: tier1, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: '(임시|긴급|응급|지정)\s?대피\s?(소|시설|장소)', tier: tier2, stage_hint: emergency_sheltering, fp: '민방위·전쟁(우크라이나·이스라엘) 대피소, 산악 대피소', source: knowledge}
+    - {pattern: '대피소\s?(생활|운영|입소|퇴소|폐쇄|통합)', tier: tier2, stage_hint: temporary_sheltering, fp: '전쟁·북한 포격 대피 보도', source: knowledge}
+    - {pattern: '(실내\s?)?체육관\s?(생활|대피|피난|숙식|노숙|임시\s?거처)', tier: tier2, stage_hint: temporary_sheltering, fp: '스포츠 기사(체육관 숙식 훈련)', source: knowledge}
+    - {pattern: '(마을\s?회관|경로당|복지\s?회관|학교|교회|성당|사찰)\s?(에서|으로|에)?\s?(대피|피신|숙식|임시\s?거처)', tier: tier2, stage_hint: emergency_sheltering, fp: '민방위 훈련, 폭염 무더위쉼터', source: knowledge}
+    - {pattern: '(칸막이|가림막)\s?(텐트|설치)|텐트\s?칸막이|재난\s?구호\s?텐트', tier: tier2, stage_hint: temporary_sheltering, fp: '사무실 칸막이, 캠핑용품 기사', source: knowledge}
+    - {pattern: '(연수원|수련원|리조트|휴양림|호텔|모텔|찜질방)\s?(으로|에|에서)?\s?(임시\s?)?(대피|입소|이주|거처|숙박)', tier: tier2, stage_hint: temporary_sheltering, fp: '관광·숙박업 기사, 기업 연수 기사', source: knowledge}
+    - {pattern: '임시\s?(거처|숙소|숙박\s?시설)', tier: tier2, stage_hint: ambiguous, fp: '노동자 숙소, 이사 공백기, 노숙인 정책', source: knowledge}
+    - {pattern: '(응급\s?)?구호\s?(물품|세트|키트|품)', tier: tier2, stage_hint: emergency_sheltering, fp: '해외 원조(전쟁·난민), 연말 기부', source: knowledge}
+  prolonged:
+    - {pattern: '장기\s?(대피|피난|이재민|대피\s?생활)', tier: tier2, stage_hint: temporary_sheltering, fp: '전쟁 피란, 장기 입원', source: knowledge}
+    - {pattern: '(대피|피난|이재민|체육관|대피소|컨테이너|텐트)\s?생활\s?\d+\s?(일|개월|달|년)', tier: tier2, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+    - {pattern: '(아직|여전히|아직도)\s?(체육관|대피소|컨테이너|임시\s?조립\s?주택|임시\s?거처|텐트)', tier: tier2, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+    - {pattern: '(집|보금자리|고향)\s?(으로|에)\s?(돌아가지|돌아갈\s?수\s?없|못\s?돌아)', tier: tier2, stage_hint: ambiguous, fp: '실향민·분단, 귀성 기사', source: knowledge}
+    - {pattern: '귀가\s?(하지\s?)?못\w*|귀가\s?불가', tier: tier2, stage_hint: emergency_sheltering, fp: '교통 마비, 실종', source: knowledge}
+  existing_stock:
+    - {pattern: '이재민\s?(용\s?)?(임대|전세|공공\s?임대|주거비|임차)', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: '(LH|엘에이치|국민|공공|매입)\s?임대\s?(주택|아파트)', tier: tier2, stage_hint: temporary_housing, fp: '일반 주택정책(청년·신혼부부)', source: knowledge}
+    - {pattern: '전세\s?임대(\s?주택)?', tier: tier2, stage_hint: temporary_housing, fp: '전세사기·주택정책', source: knowledge}
+    - {pattern: '(임대료|주거비|월세|임차료|숙박비)\s?(를\s?)?지원', tier: tier2, stage_hint: temporary_housing, fp: '청년 월세 지원 등 복지정책', source: knowledge}
+    - {pattern: '긴급\s?주거\s?지원', tier: tier2, stage_hint: temporary_housing, fp: '긴급복지지원법 주거지원(빈곤)', source: knowledge}
+    - {pattern: '(친척|지인|자녀|가족)\s?(집|댁)\s?(에|으로|에서)?\s?(머물|피신|대피|얹혀)', tier: tier2, stage_hint: temporary_sheltering, fp: '명절·일상 기사', source: knowledge}
+  humanitarian:
+    - {pattern: '(재난|이재민|구호)\s?(쉘터|셸터)', tier: tier1, stage_hint: emergency_sheltering, fp: '해외 원조 보도(전쟁)', source: knowledge}
+    - {pattern: '(난민|피란민|이재민)\s?(캠프|촌)', tier: tier2, stage_hint: ambiguous, fp: '전쟁 난민 캠프', source: knowledge}
+  problem_cues:
+    - {pattern: '(과밀|비좁|북적|발\s?디딜\s?틈|새우잠|칼잠)', cue: overcrowding, tier: cue, source: knowledge}
+    - {pattern: '(사생활|프라이버시|칸막이\s?없)', cue: privacy, tier: cue, source: knowledge}
+    - {pattern: '(화장실|샤워|세면|위생|악취|빨래)', cue: sanitation, tier: cue, source: knowledge}
+    - {pattern: '(추위|한파|난방|외풍|폭염|더위|냉방|결로|곰팡이|단열)', cue: thermal_envelope, tier: cue, source: knowledge}
+    - {pattern: '(퇴소|퇴거|나가\s?달라|철거|폐쇄|통폐합|운영\s?종료)', cue: eviction_closure, tier: cue, source: knowledge}
+    - {pattern: '(이주|이전|재배치|분산\s?수용)', cue: relocation, tier: cue, source: knowledge}
+    - {pattern: '(감염|코로나|전염|노로|독감|집단\s?발병)', cue: health_infection, tier: cue, source: knowledge}
+    - {pattern: '(불면|소음|우울|트라우마|스트레스|고독사|자살)', cue: mental_health, tier: cue, source: knowledge}
+    - {pattern: '(형평성|차별|사각지대|지원\s?대상\s?(에서\s?)?제외|선정\s?기준)', cue: eligibility_equity, tier: cue, source: knowledge}
+    - {pattern: '(갈등|민원|항의|농성|반발)', cue: conflict, tier: cue, source: knowledge}
+    - {pattern: '(장애인|노인|어르신|임산부|영유아|반려\s?(동물|견)|외국인)', cue: vulnerable_groups, tier: cue, source: knowledge}
+
+ja:
+  disaster_extra: '(災害|水害|土砂|大雨|噴火|避難指示)'
+  shelter_operation:
+    - {pattern: '避難所(での)?(生活|運営|暮らし|環境)', tier: tier1, stage_hint: temporary_sheltering, fp: '防災訓練・防災計画記事', source: knowledge}
+    - {pattern: '福祉避難所', tier: tier1, stage_hint: temporary_sheltering, fp: '平時の協定締結記事', source: knowledge}
+    - {pattern: '(指定|一次|二次|広域|自主)避難所', tier: tier1, stage_hint: emergency_sheltering, fp: '防災計画', source: knowledge}
+    - {pattern: '二次避難', tier: tier2, stage_hint: ambiguous, fp: '津波の二次避難(場所移動)', source: knowledge}
+    - {pattern: 'みなし避難所', tier: tier1, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: '車中泊', tier: tier2, stage_hint: emergency_sheltering, fp: 'レジャー・車中泊旅行', source: knowledge}
+    - {pattern: '(体育館|公民館|集会所)(で|に|での)(の)?(避難|生活|寝泊まり)', tier: tier2, stage_hint: temporary_sheltering, fp: '스포츠·합숙', source: knowledge}
+    - {pattern: '段ボール(ベッド|間仕切り)|パーティション(を)?設置', tier: tier2, stage_hint: temporary_sheltering, fp: '제품·기업 PR, 선수촌 침대', source: knowledge}
+    - {pattern: '(在宅|自主|広域|集団|分散)避難', tier: tier2, stage_hint: ambiguous, fp: '방재 계획', source: knowledge}
+    - {pattern: 'テント(泊|村|生活)', tier: tier2, stage_hint: emergency_sheltering, fp: '캠핑', source: knowledge}
+    - {pattern: '(ホテル|旅館|宿泊施設)(への|に|で)(の)?(二次)?避難', tier: tier2, stage_hint: temporary_sheltering, fp: '관광 기사', source: knowledge}
+    - {pattern: '避難者(数|名簿|支援)', tier: tier2, stage_hint: emergency_sheltering, fp: '원전 피난자(대상 범위 내로 간주 가능)', source: knowledge}
+  prolonged:
+    - {pattern: '避難(生活|所生活)?(の|が)?長期化', tier: tier1, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: '長期避難(者)?', tier: tier1, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+    - {pattern: '仮設(住宅)?(での)?(生活|暮らし|住まい)(が|の)?長期化', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: '(入居|供与)期限(の|を)?(再)?延長', tier: tier2, stage_hint: temporary_housing, fp: '공영주택 일반', source: knowledge}
+    - {pattern: '(今なお|いまだ(に)?|今も)[^。]{0,20}(避難|仮設)', tier: tier2, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+    - {pattern: '帰還困難|帰還(の)?見通し', tier: tier2, stage_hint: ambiguous, fp: '원전 구역 행정(주거 무관)', source: knowledge}
+  existing_stock:
+    - {pattern: '賃貸型(応急)?(住宅|仮設)', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: '(公営|市営|県営|雇用促進|公務員|国家公務員)住宅(への|に|を)?(一時)?(入居|提供)', tier: tier2, stage_hint: temporary_housing, fp: '평시 공영주택 정책', source: knowledge}
+    - {pattern: '(家賃|住居費|宿泊費)(の)?(補助|支援|助成|負担)', tier: tier2, stage_hint: temporary_housing, fp: '일반 복지', source: knowledge}
+    - {pattern: '(親族|親戚|知人)(宅|の家)(に|へ)?(避難|身を寄せ)', tier: tier2, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: '(住宅|自宅)(の)?応急修理', tier: tier2, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+  humanitarian:
+    - {pattern: 'スフィア(基準|スタンダード)', tier: tier1, stage_hint: temporary_sheltering, fp: '해외 원조 보도', source: knowledge}
+  problem_cues:
+    - {pattern: '(雑魚寝|すし詰め|過密|密集|定員(を)?超)', cue: overcrowding, tier: cue, source: knowledge}
+    - {pattern: '(プライバシー|着替え|更衣)', cue: privacy, tier: cue, source: knowledge}
+    - {pattern: '(トイレ|衛生|断水|入浴|風呂|シャワー)', cue: sanitation, tier: cue, source: knowledge}
+    - {pattern: '(寒さ|暑さ|熱中症|低体温|暖房|冷房|結露|カビ|断熱)', cue: thermal_envelope, tier: cue, source: knowledge}
+    - {pattern: '(災害)?関連死|エコノミークラス症候群|生活不活発病', cue: health_mortality, tier: cue, source: knowledge}
+    - {pattern: '(感染(症)?|ノロ|インフルエンザ|コロナ|クラスター)', cue: health_infection, tier: cue, source: knowledge}
+    - {pattern: '(退去|立ち退き|追い出|閉鎖|集約|統合|解消)', cue: eviction_closure, tier: cue, source: knowledge}
+    - {pattern: '(孤独死|孤立|引きこもり|自殺|心のケア)', cue: mental_health, tier: cue, source: knowledge}
+    - {pattern: '(コミュニティ|抽選|入居者(の)?選定)', cue: community_allocation, tier: cue, source: knowledge}
+    - {pattern: '(女性|性被害|性暴力|ＤＶ|DV|要配慮者|ペット)', cue: vulnerable_groups, tier: cue, source: knowledge}
+    - {pattern: '(物資(不足)?|食料|炊き出し|おにぎり)', cue: supplies_food, tier: cue, source: knowledge}
+
+tr:
+  # turkish_lower 후 텍스트 기준: 패턴은 소문자, İ→i, I→ı
+  disaster_extra: '(depremzede\w*|sel(zede|\s+felaket)\w*|yangın\w*|tahliye\w*|enkaz\w*)'
+  shelter_operation:
+    - {pattern: 'toplanma\s+alan\w*', tier: tier2, stage_hint: emergency_sheltering, fp: 'AFAD 대비 훈련·도시계획, 집회 장소', source: knowledge}
+    - {pattern: 'yurt(lar)?\w*\s+(\w+\s+){0,2}(barın|konakla|yerleştiril|misafir\s+edil)\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '학생 기숙사 부족 기사(2021~)', source: knowledge}
+    - {pattern: 'okul(lar)?\w*\s+(\w+\s+){0,2}(barın|konakla|yerleştiril|misafir\s+edil)\w*', tier: tier2, stage_hint: emergency_sheltering, fp: '시리아 난민 수용', source: knowledge}
+    - {pattern: '(spor\s+salon|kapalı\s+spor|cami|camii|cemevi)\w*\s+(\w+\s+){0,2}(barın|konakla|geceli|kal)\w*', tier: tier2, stage_hint: emergency_sheltering, fp: '스포츠, 종교 행사', source: knowledge}
+    - {pattern: '(otel|misafirhane|öğretmenev|pansiyon|apart)\w*\s+(\w+\s+){0,2}(barın|konakla|yerleştiril|misafir\s+edil)\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '관광·숙박업, 선거 숙박', source: knowledge}
+    - {pattern: '(gemi|vagon|tren)\w*\s+(\w+\s+){0,2}(barın|konakla|geceli)\w*', tier: tier2, stage_hint: emergency_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: '(konteyner|çadır)\s+yaşam\s+(alan|merkez)\w*', tier: tier1, stage_hint: ambiguous, fp: '시리아 난민 캠프(AFAD 운영)', source: knowledge}
+    - {pattern: 'geçici\s+yaşam\s+(alan|merkez)\w*', tier: tier1, stage_hint: ambiguous, fp: '시리아 난민 geçici barınma merkezi와 동일 계열', source: knowledge}
+    - {pattern: 'barınma\s+(merkez|alan|ihtiyac|sorun)\w*', tier: tier2, stage_hint: ambiguous, fp: '난민, 학생 barınma sorunu', source: knowledge}
+    - {pattern: 'barınak\w*', tier: tier2, stage_hint: emergency_sheltering, fp: '동물 보호소(hayvan barınağı) 매우 많음', source: knowledge}
+    - {pattern: '(açıkta|sokakta|araç(lar)?(ın)?da|arabada)\s+(\w+\s+)?(kal|geceli|yat|uyu|sabahla)\w*', tier: tier2, stage_hint: emergency_sheltering, fp: '노숙인', source: knowledge}
+  prolonged:
+    - {pattern: '(aylardır|yıllardır|hâlâ|hala|halen|hâla)\s+(\w+\s+){0,3}(çadır|konteyner|barın|prefabrik)\w*', tier: tier2, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+    - {pattern: 'evler(i|ine)\s+(geri\s+)?dön(eme|emiyor|emedi|emeyen)\w*', tier: tier2, stage_hint: ambiguous, fp: '전쟁·분쟁', source: knowledge}
+    - {pattern: 'yerinden\s+(edil|olmuş|olan)\w*', tier: tier2, stage_hint: ambiguous, fp: '시리아·분쟁 이재', source: knowledge}
+  existing_stock:
+    - {pattern: 'kira\s+(yardım|desteğ|destek)\w*', tier: tier2, stage_hint: temporary_housing, fp: '사회부조(sosyal yardım) 일반', source: knowledge}
+    - {pattern: 'taşınma\s+(yardım|desteğ|destek)\w*', tier: tier2, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: '(akraba|yakın|tanıdık)\w*\s+yanına\s+(git|yerleş|taşın|sığın)\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: '(misafir\s+aile|ev\s+(sahipliği|paylaş)\w*\s+kampanya)\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '교환학생', source: knowledge}
+    - {pattern: '(kamu\s+)?lojman\w*\s+(\w+\s+){0,2}(tahsis|yerleştiril|barın)\w*', tier: tier2, stage_hint: temporary_housing, fp: '공무원 관사 행정', source: knowledge}
+  humanitarian:
+    - {pattern: '(barınma|hijyen|kışlık)\s+(kiti|kitleri|seti)', tier: tier2, stage_hint: emergency_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: 'gıda\s+dışı\s+(yardım|malzeme)\w*', tier: tier2, stage_hint: emergency_sheltering, fp: '난민 원조', source: knowledge}
+  problem_cues:
+    - {pattern: '(kalabalık|sıkışık|izdiham|üst\s+üste)', cue: overcrowding, tier: cue, source: knowledge}
+    - {pattern: '(mahremiyet|özel\s+hayat)', cue: privacy, tier: cue, source: knowledge}
+    - {pattern: '(tuvalet|banyo|duş|hijyen|kanalizasyon|lağım|çöp)', cue: sanitation, tier: cue, source: knowledge}
+    - {pattern: '(soğuk|ayaz|kar\s+yağ|ısın(ma|amıyor)|sıcak|su\s+bas|çamur|yağmur\s+suyu)', cue: thermal_weather, tier: cue, source: knowledge}
+    - {pattern: '(tahliye|boşalt|kapat(ıl|ma)|çıkarıl|zorla)', cue: eviction_closure, tier: cue, source: knowledge}
+    - {pattern: '(salgın|uyuz|\bbit(lenme|lendi)?\b|ishal|bulaşıcı)', cue: health_infection, tier: cue, source: knowledge}
+    - {pattern: '(elektrik|su)\s+kesinti\w*', cue: utilities, tier: cue, source: knowledge}
+    - {pattern: '(taciz|istismar|hırsızlık|güvenlik)', cue: safety, tier: cue, source: knowledge}
+    - {pattern: '(fahiş\s+kira|kira\s+art|ev\s+sahib|kiracı)', cue: rental_market, tier: cue, source: knowledge}
+    - {pattern: '(hak\s+sahipliğ|kura|tahsis|liste\w*\s+dışı)', cue: eligibility_allocation, tier: cue, source: knowledge}
+
+it:
+  disaster_extra: '(sisma\w*|scoss\w*|esondazion\w*|frana\w*|evacuat\w*|alluvionat\w*)'
+  shelter_operation:
+    - {pattern: 'centr[oi]\s+di\s+(prima\s+)?accoglienza', tier: tier2, stage_hint: temporary_sheltering, fp: '이민자 수용소(centri di accoglienza) 매우 많음', source: knowledge}
+    - {pattern: 'aree?\s+di\s+(attesa|accoglienza|ricovero|ammassamento)', tier: tier2, stage_hint: emergency_sheltering, fp: '방재계획 문서', source: knowledge}
+    - {pattern: 'palestr[ae]\s+(\w+\s+){0,3}(sfollat|ospit|brand|accoglienz|dorm)\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '스포츠', source: knowledge}
+    - {pattern: '(sfollat|terremotat|evacuat)\w*\s+(\w+\s+){0,3}(alberghi|hotel|strutture\s+ricettive|villaggi\s+turistici)', tier: tier2, stage_hint: temporary_sheltering, fp: '관광업 손실 기사', source: knowledge}
+    - {pattern: 'tend[ae]\s+(della\s+)?protezione\s+civile|campo\s+tende', tier: tier1, stage_hint: emergency_sheltering, fp: '이민자 텐트, 훈련', source: knowledge}
+    - {pattern: 'tensostruttur\w*', tier: tier2, stage_hint: emergency_sheltering, fp: '행사·박람회', source: knowledge}
+  prolonged:
+    - {pattern: '(ancora|tuttora)\s+(\w+\s+){0,3}(sfollat\w*|in\s+albergo|negli\s+alberghi|nelle\s+casette|nelle\s+SAE|nei\s+container|fuori\s+casa)', tier: tier2, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+    - {pattern: 'fuori\s+(di\s+)?casa\s+(da|dopo)\s+(\w+\s+)?(anni|mesi|giorni)', tier: tier2, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+  existing_stock:
+    - {pattern: 'contribut[oi]\s+(di|per\s+l.?|d.?)\s*autonom[ao]\s+sistemazion[ei]', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'autonoma\s+sistemazione', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: '\bCAS\b', tier: tier2, stage_hint: temporary_housing, fp: 'Centri di Accoglienza Straordinaria(이민자) 충돌 심각, case_sensitive 필요', case_sensitive: true, source: knowledge}
+    - {pattern: '(sistemazion[ei]|accoglienza)\s+(alberghier[ae]|in\s+albergo|negli\s+alberghi)', tier: tier2, stage_hint: temporary_sheltering, fp: '이민자 호텔 수용', source: knowledge}
+    - {pattern: 'contribut[oi]\s+(per\s+l.?)?affitto', tier: tier2, stage_hint: temporary_housing, fp: '일반 주거정책', source: knowledge}
+    - {pattern: 'alloggi\s+(di\s+)?(edilizia\s+(residenziale\s+)?pubblica|ERP|popolari|sfitti)', tier: tier2, stage_hint: temporary_housing, fp: '공공주택 일반', source: knowledge}
+  units_extra:
+    - {pattern: 'M\.?A\.?P\.?R\.?E\.?\b', tier: tier1, stage_hint: temporary_housing, fp: 'MAPRE 약어 충돌 가능', case_sensitive: true, source: knowledge}
+    - {pattern: 'moduli\s+abitativi\s+(provvisori\s+)?rurali', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'moduli\s+(container|prefabbricati|temporanei)', tier: tier2, stage_hint: temporary_housing, fp: '학교 임시교실', source: knowledge}
+  humanitarian:
+    - {pattern: 'kit\s+(di\s+)?(prima\s+necessit[aà]|igienic\w*)', tier: tier2, stage_hint: emergency_sheltering, fp: '이민자 지원', source: knowledge}
+  problem_cues:
+    - {pattern: '(sovraffollament\w*|promiscuit[aà]|ammassat\w*)', cue: overcrowding, tier: cue, source: knowledge}
+    - {pattern: 'privacy|intimit[aà]', cue: privacy, tier: cue, source: knowledge}
+    - {pattern: '(bagni(\s+chimici)?|servizi\s+igienici|docce|fogn\w*|igiene)', cue: sanitation, tier: cue, source: knowledge}
+    - {pattern: '(freddo|gelo|neve|caldo|riscaldament\w*|muff[ae]|infiltrazion\w*|condensa)', cue: thermal_envelope, tier: cue, source: knowledge}
+    - {pattern: '(sgomber\w*|chiusura|trasferiment\w*|ricollocazion\w*|lasciare\s+gli\s+alberghi)', cue: eviction_closure, tier: cue, source: knowledge}
+    - {pattern: '(ritard[io]|consegn[ae]|cantier[ei])', cue: delivery_delay, tier: cue, source: knowledge}
+    - {pattern: '(assegnazion\w*|graduatori\w*|requisiti|esclus[io])', cue: eligibility_allocation, tier: cue, source: knowledge}
+    - {pattern: '(difett\w*|vizi\s+costruttivi|topi|crepe|scarichi)', cue: unit_defects, tier: cue, source: knowledge}
+    - {pattern: '(solitudine|depression\w*|psicolog\w*|suicid\w*)', cue: mental_health, tier: cue, source: knowledge}
+    - {pattern: '(inchiesta|appalt\w*|costi|sprech\w*|indagin\w*)', cue: governance_cost, tier: cue, source: knowledge}
+
+en:
+  disaster_extra: '(storm|typhoon|tsunami|landslide|mudslide|evacuat\w*|disaster)'
+  shelter_operation:
+    - {pattern: 'evacuation\s+(centres?|centers?|sites?|shelters?)', tier: tier1, stage_hint: emergency_sheltering, fp: '전쟁 피란, 화학사고; v0 tier2를 tier1 승격 제안', dup_v0: true, source: knowledge}
+    - {pattern: '(mass|red\s+cross|general\s+population|special[\s-]needs|medical[\s-]needs)\s+(care\s+)?shelters?', tier: tier1, stage_hint: emergency_sheltering, fp: 'Red Cross 일상 화재 대응, 헌혈 기사', source: knowledge}
+    - {pattern: 'congregate\s+(care\s+)?shelters?|non[\s-]congregate\s+shelter\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '노숙인 COVID 정책(non-congregate)', source: knowledge}
+    - {pattern: 'collective\s+(centres?|centers?|shelters?|sites?|accommodation)', tier: tier2, stage_hint: temporary_sheltering, fp: '우크라이나 전쟁 IDP, 난민', source: knowledge}
+    - {pattern: '(evacuation|relief|recovery)\s+(and\s+relief\s+)?(centres?|centers?)', tier: tier2, stage_hint: emergency_sheltering, fp: 'FEMA Disaster Recovery Center는 행정창구(주거 아님)', source: knowledge}
+    - {pattern: '(convention\s+cent(er|re)|superdome|astrodome|arena|stadium|gym(nasium)?s?|church(es)?|fairgrounds?|school\s+halls?)\s+(\w+\s+){0,4}(evacuees|cots|shelter(ing|ed)?)', tier: tier2, stage_hint: temporary_sheltering, fp: '스포츠 경기장 일반', source: knowledge}
+    - {pattern: 'evacuees\s+(\w+\s+){0,4}(cots|gym|arena|convention|shelters?|hotels?|motels?)', tier: tier1, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: 'tent\s+(city|cities|camps?|encampments?)', tier: tier2, stage_hint: emergency_sheltering, fp: '노숙인 encampment, 전쟁 난민', source: knowledge}
+    - {pattern: 'sleeping\s+in\s+(their\s+)?(cars?|vehicles?|trucks?|tents?|the\s+open)', tier: tier2, stage_hint: emergency_sheltering, fp: '노숙인', source: knowledge}
+    - {pattern: 'cruise\s+ships?\s+(\w+\s+){0,4}(evacuees|house|housing|shelter)', tier: tier2, stage_hint: temporary_sheltering, fp: '크루즈 관광', source: knowledge}
+  prolonged:
+    - {pattern: 'protracted\s+displacement', tier: tier1, stage_hint: ambiguous, fp: '전쟁 난민·IDP 보도', source: knowledge}
+    - {pattern: 'still\s+(living|staying|sleeping|stuck)\s+in\s+(\w+\s+){0,3}(shelters?|evacuation|trailers?|tents?|hotels?|motels?|cars?|temporary|campers?|pods?)', tier: tier2, stage_hint: ambiguous, fp: '노숙인', source: knowledge}
+    - {pattern: 'long[\s-]term\s+(displacement|evacuees|displaced|shelter(ing)?)', tier: tier2, stage_hint: ambiguous, fp: '전쟁', source: knowledge}
+    - {pattern: "(can.?t|cannot|unable\\s+to|yet\\s+to)\\s+(go|return|move)\\s+(back\\s+)?home", tier: tier2, stage_hint: ambiguous, fp: '일반 서술', source: knowledge}
+  existing_stock:
+    - {pattern: 'FEMA\s+(rental|housing|rent)\s+(assistance|aid|payments?)', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'transitional\s+shelter(ing)?\s+assistance', tier: tier1, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+    - {pattern: '\bTSA\b', tier: tier2, stage_hint: ambiguous, fp: '공항보안청 TSA 충돌 극심, case_sensitive+FEMA 근접 필요', case_sensitive: true, source: knowledge}
+    - {pattern: '(FEMA|red\s+cross|state)[\s-]+(funded|paid|provided)\s+(hotel|motel)s?(\s+rooms?)?', tier: tier1, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: '(hotel|motel)\s+(vouchers?|program(me)?s?|stays?|rooms?)', tier: tier2, stage_hint: temporary_sheltering, fp: '노숙인 motel voucher, 호텔업 뉴스', source: knowledge}
+    - {pattern: '(K?DHAP|disaster\s+housing\s+assistance\s+program|direct\s+lease|multi[\s-]family\s+lease\s+and\s+repair)', tier: tier1, stage_hint: temporary_housing, fp: 'direct lease는 부동산 일반', source: knowledge}
+    - {pattern: '(rental|rent)\s+(assistance|subsid(y|ies)|vouchers?|relief|support\s+payments?)', tier: tier2, stage_hint: temporary_housing, fp: 'Section 8, COVID 임대료 지원', source: knowledge}
+    - {pattern: 'cash[\s-]for[\s-](rent|shelter)', tier: tier1, stage_hint: temporary_housing, fp: '인도주의 난민 사업', source: knowledge}
+    - {pattern: 'host\s+(famil(y|ies)|households?|communit(y|ies))', tier: tier2, stage_hint: temporary_sheltering, fp: '난민, 교환학생, 행사 개최지', source: knowledge}
+    - {pattern: 'staying\s+with\s+(friends|family|relatives)', tier: tier2, stage_hint: temporary_sheltering, fp: '일상', source: knowledge}
+    - {pattern: 'emergency\s+accommodation', tier: tier2, stage_hint: temporary_sheltering, fp: '호주·영국 노숙인 정책', source: knowledge}
+  units_extra:
+    - {pattern: '(Katrina|Mississippi)\s+cottages?', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'FEMA\s+(group\s+)?(sites?|parks?|villages?|trailer\s+parks?)', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'travel\s+trailers?|(RVs?|campers?)\s+(\w+\s+){0,3}(survivors|evacuees|displaced)', tier: tier2, stage_hint: temporary_housing, fp: 'RV 산업 뉴스', source: knowledge}
+  humanitarian:
+    - {pattern: '\bt[\s-]shelters?\b', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'transitional\s+shelters?', tier: tier2, stage_hint: temporary_housing, fp: '노숙인 transitional shelter', source: knowledge}
+    - {pattern: '(core|progressive|one[\s-]room|emergency)\s+shelters?\s+(kits?|units?|programs?)', tier: tier2, stage_hint: ambiguous, fp: '노숙인', source: knowledge}
+    - {pattern: 'shelter\s+(kits?|cluster|sector|tool\s?kits?|boxes?)', tier: tier1, stage_hint: emergency_sheltering, fp: '전쟁 원조', source: knowledge}
+    - {pattern: '\bNFIs?\b|non[\s-]food\s+items?', tier: tier2, stage_hint: emergency_sheltering, fp: '난민 원조', source: knowledge}
+    - {pattern: '\bCCCM\b|camp\s+coordination\s+and\s+camp\s+management', tier: tier1, stage_hint: temporary_sheltering, fp: '분쟁 IDP', source: knowledge}
+    - {pattern: '(camp|site)\s+management', tier: tier2, stage_hint: temporary_sheltering, fp: '건설현장 관리', source: knowledge}
+    - {pattern: 'displacement\s+(sites?|camps?|tracking\s+matrix)', tier: tier2, stage_hint: temporary_sheltering, fp: '분쟁', source: knowledge}
+    - {pattern: 'IDP\s+(camps?|sites?|settlements?)|internally\s+displaced\s+(persons|people)', tier: tier2, stage_hint: ambiguous, fp: '분쟁 IDP 압도적', source: knowledge}
+    - {pattern: 'Sphere\s+(standards?|handbook|minimum\s+standards?)', tier: tier1, stage_hint: temporary_sheltering, fp: '분쟁', source: knowledge}
+    - {pattern: 'tarpaulins?|plastic\s+sheeting', tier: tier2, stage_hint: emergency_sheltering, fp: '건설·농업', source: knowledge}
+  problem_cues:
+    - {pattern: '(overcrowd\w*|cramped|packed\s+(in|into)|cots?\s+(lined|inches)|elbow\s+to\s+elbow)', cue: overcrowding, tier: cue, source: knowledge}
+    - {pattern: 'privacy', cue: privacy, tier: cue, source: knowledge}
+    - {pattern: '(toilets?|porta[\s-]?(potties|johns?)|showers?|sanitation|hygiene|sewage|stench)', cue: sanitation, tier: cue, source: knowledge}
+    - {pattern: '(heat|sweltering|air[\s-]?condition\w*|cold|freezing|mou?ld|formaldehyde|leak\w*)', cue: thermal_envelope, tier: cue, source: knowledge}
+    - {pattern: '(evict\w*|kicked\s+out|check[\s-]?out\s+date|deadline|clos(e|ed|ing|ure)\s+(of\s+)?(the\s+)?shelters?|wind(ing)?\s+down)', cue: eviction_closure, tier: cue, source: knowledge}
+    - {pattern: '(relocat\w*|bused|transferred|moved\s+again)', cue: relocation, tier: cue, source: knowledge}
+    - {pattern: '(outbreak|norovirus|covid|scabies|lice|infection)', cue: health_infection, tier: cue, source: knowledge}
+    - {pattern: '(assault\w*|rape|violence|theft|security|police)', cue: safety, tier: cue, source: knowledge}
+    - {pattern: '(eligib\w*|denied|appeal\w*|duplication\s+of\s+benefits|paperwork|red\s+tape)', cue: eligibility_bureaucracy, tier: cue, source: knowledge}
+    - {pattern: '(pets?|service\s+animals?|disabilit\w*|elderly|wheelchair|undocumented)', cue: vulnerable_groups, tier: cue, source: knowledge}
+    - {pattern: '(mental\s+health|depress\w*|suicid\w*|trauma|isolation)', cue: mental_health, tier: cue, source: knowledge}
+
+es:
+  disaster_extra: '(inundaci[oó]n\w*|temporal\w*|evacuad\w*|afectad\w*|desastre\w*|cat[aá]strofe\w*)'
+  shelter_operation:
+    - {pattern: 'albergues?\s+(temporal(es)?|de\s+emergencia|municipal(es)?|habilitad\w*)', tier: tier2, stage_hint: temporary_sheltering, fp: '이민자·노숙인 albergue', source: knowledge}
+    - {pattern: 'refugios?\s+(temporal(es)?|de\s+emergencia|provisori\w*)', tier: tier2, stage_hint: emergency_sheltering, fp: '동물 보호소, 산장', source: knowledge}
+    - {pattern: '(damnificad|evacuad|afectad)\w*\s+(\w+\s+){0,3}(escuelas?|colegios?|liceos?|gimnasios?|iglesias?|polideportivos?|sedes?\s+sociales?)', tier: tier2, stage_hint: temporary_sheltering, fp: '학교 피해 기사(수용 아님)', source: knowledge}
+    - {pattern: '(escuelas?|colegios?|liceos?|gimnasios?)\s+(\w+\s+){0,2}(albergue|refugio|habilitad)\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: 'centros?\s+de\s+(evacuaci[oó]n|acogida|refugio)', tier: tier2, stage_hint: emergency_sheltering, fp: '이민자 centro de acogida', source: knowledge}
+    - {pattern: 'carpas?\s+(de\s+emergencia|para\s+(los\s+)?damnificados|instalad\w*)', tier: tier2, stage_hint: emergency_sheltering, fp: '행사 텐트', source: knowledge}
+    - {pattern: 'viviendo\s+en\s+(carpas|la\s+calle|autos?|veh[ií]culos?|rucos?)', tier: tier2, stage_hint: emergency_sheltering, fp: '노숙인', source: knowledge}
+    - {pattern: 'zonas?\s+de\s+seguridad|puntos?\s+de\s+encuentro', tier: tier2, stage_hint: emergency_sheltering, fp: '훈련·행사', source: knowledge}
+  prolonged:
+    - {pattern: '(todav[ií]a|a[uú]n|siguen|contin[uú]an)\s+(\w+\s+){0,3}(albergues?|carpas?|mediaguas?|aldeas?|campamentos?|viviendas?\s+de\s+emergencia)', tier: tier2, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+    - {pattern: 'desplazad\w*\s+(prolongad|forzad)\w*|desplazamiento\s+prolongado', tier: tier2, stage_hint: ambiguous, fp: '콜롬비아 무력분쟁', source: knowledge}
+    - {pattern: 'no\s+(han\s+)?(podido\s+)?(volver|regresar|retornar)\s+a\s+sus\s+(casas|hogares|viviendas)', tier: tier2, stage_hint: ambiguous, fp: '이민', source: knowledge}
+  existing_stock:
+    - {pattern: '(subsidios?|bonos?|ayudas?|apoyos?)\s+(de|para\s+(el\s+)?|al)\s*(arriendo|alquiler)', tier: tier2, stage_hint: temporary_housing, fp: '칠레 평시 subsidio de arriendo(DS52)', source: knowledge}
+    - {pattern: '(arriendo|alquiler)\s+de\s+emergencia', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'allegad[oa]s?|allegamiento', tier: tier2, stage_hint: temporary_sheltering, fp: '칠레 주택부족 논의(allegamiento) 매우 많음', source: knowledge}
+    - {pattern: 'familias?\s+(de\s+)?acog(ida|edora)s?', tier: tier2, stage_hint: temporary_sheltering, fp: '위탁가정(아동복지)', source: knowledge}
+    - {pattern: 'casas?\s+de\s+(familiares|parientes|amigos)', tier: tier2, stage_hint: temporary_sheltering, fp: '일상', source: knowledge}
+    - {pattern: '(hoteles?|hostales?|moteles?)\s+(\w+\s+){0,3}(damnificad|evacuad)\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '관광', source: knowledge}
+  units_extra:
+    - {pattern: 'barrios?\s+de\s+emergencia|campamentos?\s+de\s+damnificados', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'viviendas?\s+(b[aá]sicas?|modulares|prefabricadas?|de\s+madera)', tier: tier2, stage_hint: temporary_housing, fp: '부동산·주택산업', source: knowledge}
+  humanitarian:
+    - {pattern: 'alojamientos?\s+(temporal(es)?|de\s+emergencia|transitorios?)', tier: tier2, stage_hint: temporary_sheltering, fp: '관광 숙박, 이민자', source: knowledge}
+    - {pattern: '(refugios?|albergues?)\s+transitori\w*', tier: tier2, stage_hint: temporary_housing, fp: '이민자', source: knowledge}
+    - {pattern: 'art[ií]culos?\s+no\s+alimentarios?', tier: tier2, stage_hint: emergency_sheltering, fp: '난민 원조', source: knowledge}
+    - {pattern: 'gesti[oó]n\s+de\s+(albergues|campamentos|alojamientos\s+temporales)|\bCCCM\b', tier: tier1, stage_hint: temporary_sheltering, fp: '분쟁 IDP', source: knowledge}
+    - {pattern: 'kits?\s+de\s+(abrigo|refugio|higiene|emergencia|albergue)', tier: tier2, stage_hint: emergency_sheltering, fp: '방재 홍보', source: knowledge}
+    - {pattern: '(sitios?|campamentos?|asentamientos?)\s+de\s+desplazados', tier: tier2, stage_hint: ambiguous, fp: '분쟁', source: knowledge}
+  problem_cues:
+    - {pattern: 'hacinamiento|hacinad\w*', cue: overcrowding, tier: cue, source: knowledge}
+    - {pattern: 'privacidad|intimidad', cue: privacy, tier: cue, source: knowledge}
+    - {pattern: '(ba[nñ]os?(\s+qu[ií]micos)?|letrinas?|duchas?|higiene|aguas\s+servidas|pozos?\s+negros?)', cue: sanitation, tier: cue, source: knowledge}
+    - {pattern: '(fr[ií]o|lluvia|barro|humedad|calor|filtraci\w*|goteras?|aislaci[oó]n)', cue: thermal_envelope, tier: cue, source: knowledge}
+    - {pattern: '(desalojo\w*|cierre|traslad\w*|erradicaci\w*|reubicaci\w*)', cue: eviction_relocation, tier: cue, source: knowledge}
+    - {pattern: '(enfermedad\w*|brotes?|diarrea|sarna|piojos|hepatitis)', cue: health_infection, tier: cue, source: knowledge}
+    - {pattern: '(violencia|abusos?|robos?|seguridad|carabineros)', cue: safety, tier: cue, source: knowledge}
+    - {pattern: '(ratones|ratas|plagas)', cue: unit_defects, tier: cue, source: knowledge}
+    - {pattern: '(promesas?|espera|retras\w*|demora\w*|incumpl\w*)', cue: delivery_delay, tier: cue, source: knowledge}
+    - {pattern: '(catastro|ficha\s+(FIBE|EFU)|beneficiari\w*|exclu\w*|requisitos)', cue: eligibility_allocation, tier: cue, source: knowledge}
+
+fr:
+  disaster_extra: '([ée]vacu[ée]\w*|d[ée]plac[ée]s|catastrophe|temp[êe]te|cyclone|crue\w*|al\s?haouz)'
+  shelter_operation:
+    - {pattern: 'centres?\s+d.?h[ée]bergement\s+d.?urgence', tier: tier2, stage_hint: temporary_sheltering, fp: '프랑스 노숙인 CHU 매우 많음', source: knowledge}
+    - {pattern: 'centres?\s+d.?(accueil|h[ée]bergement)\s+(provisoires?|temporaires?|des\s+(sinistr[ée]s|[ée]vacu[ée]s))', tier: tier1, stage_hint: temporary_sheltering, fp: '이민자 centre d''accueil provisoire', source: knowledge}
+    - {pattern: 'centres?\s+d.?accueil\s+et\s+de\s+regroupement', tier: tier1, stage_hint: emergency_sheltering, fp: '드묾 (ORSEC 용어로 추정, 미검증)', source: knowledge}
+    - {pattern: '(gymnases?|salles?\s+(polyvalentes?|des\s+f[eê]tes|communales?)|[ée]coles?|mosqu[ée]es?)\s+(\w+\s+){0,3}(sinistr|r[ée]fugi|h[ée]berg|[ée]vacu|accueill)\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '스포츠, 학교 피해 기사', source: knowledge}
+    - {pattern: '(sinistr[ée]s|[ée]vacu[ée]s|d[ée]plac[ée]s)\s+(\w+\s+){0,3}(gymnases?|h[ôo]tels?|campings?|tentes?)', tier: tier2, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: 'campements?\s+(de\s+fortune|provisoires?|de\s+sinistr[ée]s)|camps?\s+de\s+(tentes|sinistr[ée]s)', tier: tier2, stage_hint: emergency_sheltering, fp: '이민자 캠프(칼레)', source: knowledge}
+    - {pattern: '(dormir|dorment|passer\s+la\s+nuit|passent\s+la\s+nuit)\s+(\w+\s+){0,2}(dehors|[àa]\s+la\s+belle\s+[ée]toile|dans\s+(leurs?\s+)?(voitures?|v[ée]hicules?))', tier: tier2, stage_hint: emergency_sheltering, fp: '노숙인', source: knowledge}
+  prolonged:
+    - {pattern: '(toujours|encore)\s+(\w+\s+){0,3}(sous\s+(des\s+|les\s+)?tentes?|dans\s+des\s+(tentes|gymnases|h[ôo]tels|abris|campements|mobil[\s-]?homes))', tier: tier2, stage_hint: ambiguous, fp: '드묾', source: knowledge}
+    - {pattern: '(n.?ont\s+(toujours\s+)?pas\s+(pu|encore)|ne\s+peuvent\s+(toujours\s+)?pas)\s+(\w+\s+)?(regagner|rentrer|retourner|r[ée]int[ée]grer)', tier: tier2, stage_hint: ambiguous, fp: '일반 서술', source: knowledge}
+    - {pattern: 'd[ée]placement\s+prolong[ée]|d[ée]plac[ée]s\s+de\s+longue\s+dur[ée]e', tier: tier2, stage_hint: ambiguous, fp: '분쟁', source: knowledge}
+  existing_stock:
+    - {pattern: 'allocation\s+(de\s+)?logement\s+temporaire', tier: tier2, stage_hint: temporary_housing, fp: '프랑스 ALT(노숙인 정책) 충돌 심각', source: knowledge}
+    - {pattern: '(aide|allocation|indemnit[ée]|prise\s+en\s+charge)\s+(au\s+|de\s+|du\s+|d.?)?(loyer|relogement|h[ée]bergement)', tier: tier2, stage_hint: temporary_housing, fp: '사회주택 정책', source: knowledge}
+    - {pattern: 'aide\s+(mensuelle\s+)?(de\s+)?2[\s.]?500\s+(dirhams|dh)', tier: tier2, stage_hint: temporary_housing, fp: '드묾 (모로코 2023 월 지원금)', source: knowledge}
+    - {pattern: 'relogement\s+(provisoire|temporaire|d.?urgence)|relog[ée]s\s+(provisoirement|temporairement)', tier: tier1, stage_hint: temporary_housing, fp: '건물 붕괴 위험(insalubrité) 퇴거', source: knowledge}
+    - {pattern: 'familles?\s+d.?accueil', tier: tier2, stage_hint: temporary_sheltering, fp: '위탁가정', source: knowledge}
+    - {pattern: 'h[ée]berg[ée]s?\s+(chez\s+des\s+(proches|parents|amis|voisins)|[àa]\s+l.?h[ôo]tel)', tier: tier2, stage_hint: temporary_sheltering, fp: '노숙인 hôtel social', source: knowledge}
+  units_extra:
+    - {pattern: 'abris?\s+(provisoires?|temporaires?|d.?urgence)', tier: tier1, stage_hint: emergency_sheltering, fp: '이민자', source: knowledge}
+    - {pattern: 'mobil[\s-]?homes?|bungalows?|(habitats?|modules?)\s+modulaires?', tier: tier2, stage_hint: temporary_housing, fp: '캠핑·관광', source: knowledge}
+  humanitarian:
+    - {pattern: 'abris?\s+transitoires?', tier: tier1, stage_hint: temporary_housing, fp: '아이티 등 원조(범위 내)', source: knowledge}
+    - {pattern: 'articles?\s+non[\s-]alimentaires?|biens\s+non\s+alimentaires', tier: tier2, stage_hint: emergency_sheltering, fp: '분쟁', source: knowledge}
+    - {pattern: 'kits?\s+(d.?abris?|d.?hygi[eè]ne|de\s+survie|d.?urgence)', tier: tier2, stage_hint: emergency_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: 'coordination\s+et\s+gestion\s+des\s+camps|gestion\s+des\s+(sites|camps)', tier: tier2, stage_hint: temporary_sheltering, fp: '분쟁', source: knowledge}
+    - {pattern: '(sites?|camps?)\s+de\s+d[ée]plac[ée]s', tier: tier2, stage_hint: ambiguous, fp: '사헬 분쟁 IDP', source: knowledge}
+  problem_cues:
+    - {pattern: '(promiscuit[ée]|surpeupl\w*|entass\w*|surcharg\w*)', cue: overcrowding, tier: cue, source: knowledge}
+    - {pattern: 'intimit[ée]', cue: privacy, tier: cue, source: knowledge}
+    - {pattern: '(sanitaires|toilettes|douches|hygi[eè]ne|latrines)', cue: sanitation, tier: cue, source: knowledge}
+    - {pattern: '(froid|neige|chaleur|canicule|pluie|humidit[ée]|infiltrations?|moisissures?)', cue: thermal_envelope, tier: cue, source: knowledge}
+    - {pattern: '(expuls\w*|fermeture|d[ée]mant[eè]lement|d[ée]plac[ée]s\s+de\s+force|[ée]vacuation\s+forc[ée]e)', cue: eviction_closure, tier: cue, source: knowledge}
+    - {pattern: '(maladies?|[ée]pid[ée]mie|gale|diarrh[ée]e)', cue: health_infection, tier: cue, source: knowledge}
+    - {pattern: '(scolarit[ée]|scolarisation|d[ée]crochage)', cue: education_disruption, tier: cue, source: knowledge}
+    - {pattern: '(recensement|listes?|exclus|[ée]ligib\w*|b[ée]n[ée]ficiaires)', cue: eligibility_allocation, tier: cue, source: knowledge}
+    - {pattern: '(violences?|harc[eè]lement|vols?|s[ée]curit[ée])', cue: safety, tier: cue, source: knowledge}
+    - {pattern: '(lenteur|retards?|attente|promesses?)', cue: delivery_delay, tier: cue, source: knowledge}
+
+ar:
+  # 정규화 후: ة→ه, أإآ→ا, 무타슈킬. ى/ي 및 ؤ는 미정규화.
+  disaster_extra: '(فيضان\w*|سيول|اعصار|النازحين|المتضررين?|المشردين|الكارثه|الحوز)'
+  shelter_operation:
+    - {pattern: 'مراكز\s?(ال)?ايواء', tier: tier2, stage_hint: temporary_sheltering, fp: '가자·시리아 전쟁 UNRWA 대피소 압도적', source: knowledge}
+    - {pattern: 'مدارس\s?(ال)?ايواء|مدارس\s+(\S+\s+){0,2}(لايواء|تؤوي)', tier: tier2, stage_hint: temporary_sheltering, fp: '가자 전쟁', source: knowledge}
+    - {pattern: '(مخيمات|خيام)\s?(ال)?ايواء', tier: tier2, stage_hint: emergency_sheltering, fp: '전쟁 난민', source: knowledge}
+    - {pattern: 'ملاجئ\s?(ال)?مؤقته|ملاجئ', tier: tier2, stage_hint: emergency_sheltering, fp: '방공호(전쟁)', source: knowledge}
+    - {pattern: 'مراكز\s?(ال)?(اجلاء|استقبال|تجميع)', tier: tier2, stage_hint: emergency_sheltering, fp: '이민자 수용', source: knowledge}
+    - {pattern: '(دور|دار)\s?(ال)?(طالب|طالبه|شباب)', tier: tier2, stage_hint: temporary_sheltering, fp: '모로코 교육·청소년 정책 기사', source: knowledge}
+    - {pattern: 'في\s?العراء|تحت\s?(ال)?خيام|المبيت\s+(في|داخل)\s+(السيارات|العراء|الخيام)', tier: tier2, stage_hint: emergency_sheltering, fp: '전쟁 난민, 노숙', source: knowledge}
+  prolonged:
+    - {pattern: '(لا\s?يزال|لا\s?تزال|ما\s?زال|ما\s?زالت)\w*\s+(\S+\s+){0,3}(الخيام|خيام|مراكز\s?الايواء|العراء|المخيمات)', tier: tier2, stage_hint: ambiguous, fp: '전쟁 난민', source: knowledge}
+    - {pattern: 'نزوح\s+(طويل|مطول|ممتد)|النزوح\s+(الطويل|المطول|الممتد)', tier: tier2, stage_hint: ambiguous, fp: '전쟁', source: knowledge}
+    - {pattern: 'العوده\s+(الى|ل)\s?(منازلهم|بيوتهم|ديارهم|قراهم)', tier: tier2, stage_hint: ambiguous, fp: '전쟁 귀환', source: knowledge}
+  existing_stock:
+    - {pattern: '(دعم|بدل|اعانه|منحه)\s?(ال)?(ايجار|كراء|سكن)', tier: tier2, stage_hint: temporary_housing, fp: '일반 주택정책·공무원 수당', source: knowledge}
+    - {pattern: '(2500|٢٥٠٠)\s?درهم|الدعم\s+الشهري', tier: tier2, stage_hint: temporary_housing, fp: '모로코 기타 사회지원(AMO 등)', source: knowledge}
+    - {pattern: '(عائلات|اسر|الاسر|العائلات)\s?(ال)?(مستضيفه|مضيفه|حاضنه)', tier: tier2, stage_hint: temporary_sheltering, fp: '난민 수용가정', source: knowledge}
+    - {pattern: '(لدى|عند)\s+(ال)?(اقارب|اهل|اقاربهم|ذويهم)', tier: tier2, stage_hint: temporary_sheltering, fp: '일상', source: knowledge}
+    - {pattern: 'فنادق\s+(\S+\s+){0,2}(المتضررين|المنكوبين|النازحين)', tier: tier2, stage_hint: temporary_sheltering, fp: '관광', source: knowledge}
+  humanitarian:
+    - {pattern: 'ماو[ىي]\s?(ال)?(مؤقت|انتقالي)|الماو[ىي]\s+(ال)?(مؤقت|انتقالي)', tier: tier1, stage_hint: ambiguous, fp: '분쟁 원조', source: knowledge}
+    - {pattern: 'مساكن\s?(ال)?انتقاليه|ملاجئ\s?(ال)?انتقاليه', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'مواد\s?(ال)?غير\s?(ال)?غذائيه', tier: tier2, stage_hint: emergency_sheltering, fp: '분쟁 원조', source: knowledge}
+    - {pattern: '(مخيمات|مواقع)\s?(ال)?نزوح', tier: tier2, stage_hint: ambiguous, fp: '분쟁 IDP 압도적', source: knowledge}
+    - {pattern: 'اداره\s?(ال)?(مخيمات|المواقع)', tier: tier2, stage_hint: temporary_sheltering, fp: '분쟁', source: knowledge}
+    - {pattern: 'معايير\s?(ا)?سفير', tier: tier1, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+  problem_cues:
+    - {pattern: '(اكتظاظ|ازدحام|مكتظه)', cue: overcrowding, tier: cue, source: knowledge}
+    - {pattern: 'خصوصيه', cue: privacy, tier: cue, source: knowledge}
+    - {pattern: '(مراحيض|دورات\s?المياه|الصرف\s?الصحي|النظافه|الاستحمام)', cue: sanitation, tier: cue, source: knowledge}
+    - {pattern: '(البرد|الثلوج|الامطار|الحراره|الحر\s?الشديد|تسرب)', cue: thermal_weather, tier: cue, source: knowledge}
+    - {pattern: '(اخلاء|طرد|اغلاق|ترحيل|هدم\s?الخيام)', cue: eviction_closure, tier: cue, source: knowledge}
+    - {pattern: '(امراض|اوبئه|الجرب|الاسهال)', cue: health_infection, tier: cue, source: knowledge}
+    - {pattern: '(التحرش|الامن|سرقه|العنف)', cue: safety, tier: cue, source: knowledge}
+    - {pattern: '(التمدرس|الدراسه|المدارس)', cue: education_disruption, tier: cue, source: knowledge}
+    - {pattern: '(الاحصاء|اللوائح|الاقصاء|المستفيدين|الاستفاده)', cue: eligibility_allocation, tier: cue, source: knowledge}
+    - {pattern: '(تاخر|بطء|وعود)', cue: delivery_delay, tier: cue, source: knowledge}
+
+# ---------------------------------------------------------------------------
+# expansion: 확장 단계 언어용 핵심 후보만 (3~6개). 정규화 규칙 미정 — 채택 시 언어별 normalize 정의 필요.
+expansion:
+  pt:
+    - {pattern: 'desabrigad[oa]s?', tier: tier2, stage_hint: temporary_sheltering, fp: '노숙인(브라질에선 공공대피소 수용자 의미가 주)', note: 'desabrigado=공공대피소, desalojado=친지 집: 구분 유지', source: knowledge}
+    - {pattern: 'desalojad[oa]s?', tier: tier2, stage_hint: temporary_sheltering, fp: '퇴거(despejo) 기사', source: knowledge}
+    - {pattern: 'abrigos?\s+(tempor[aá]rios?|provis[oó]rios?|emergenciais?|p[uú]blicos?|municipais)', tier: tier2, stage_hint: temporary_sheltering, fp: '동물 보호소, 노숙인', source: knowledge}
+    - {pattern: 'aluguel\s+social|aux[ií]lio[\s-]aluguel|bolsa[\s-]aluguel', tier: tier2, stage_hint: temporary_housing, fp: '평시 주택정책', source: knowledge}
+    - {pattern: 'moradias?\s+(provis[oó]rias?|tempor[aá]rias?)|(casas|unidades)\s+provis[oó]rias', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+  de:
+    - {pattern: 'Notunterk(u|ü)nft\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '2015 난민 수용 압도적', source: knowledge}
+    - {pattern: '(Turnhalle|Sporthalle|Mehrzweckhalle)n?\s+(\w+\s+){0,3}(Evakuiert|Flutopfer|Betroffen|untergebracht)\w*', tier: tier2, stage_hint: temporary_sheltering, fp: '난민 체육관 수용', source: knowledge}
+    - {pattern: 'Wohncontainer\w*|Tiny[\s-]?Houses?', tier: tier2, stage_hint: temporary_housing, fp: '난민·건설현장·라이프스타일', source: knowledge}
+    - {pattern: '(Ersatz|Übergangs|Not)wohn(raum|ung\w*)', tier: tier2, stage_hint: temporary_housing, fp: '노숙인·난민', source: knowledge}
+    - {pattern: 'Mietzuschuss\w*|Mietkosten\w*\s+(\w+\s+){0,2}übernommen', tier: tier2, stage_hint: temporary_housing, fp: 'Wohngeld 일반', source: knowledge}
+  el:
+    - {pattern: 'προσωρ[ιί]ν\w*\s+στ[εέ]γασ\w*', tier: tier1, stage_hint: temporary_housing, fp: '난민 숙소(ESTIA)', source: knowledge}
+    - {pattern: 'οικ[ιί]σκ\w*', tier: tier2, stage_hint: temporary_housing, fp: '해변 매점·관광 숙소', source: knowledge}
+    - {pattern: 'σκην(ές|ών|ή|οπ[οό]λ\w*)', tier: tier2, stage_hint: emergency_sheltering, fp: '연극(σκηνή=무대) 충돌 극심', source: knowledge}
+    - {pattern: 'επ[ιί]δομα\w*\s+ενοικ[ιί]ου|στεγαστικ\w*\s+συνδρομ\w*', tier: tier2, stage_hint: temporary_housing, fp: '평시 주거수당', source: knowledge}
+    - {pattern: 'καταυλισμ\w*', tier: tier2, stage_hint: emergency_sheltering, fp: '로마(집시) 정착지, 난민 캠프', source: knowledge}
+  id:
+    - {pattern: 'hunian\s+sementara|\bhuntara\b', tier: tier1, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+    - {pattern: '(posko|tenda|tempat|lokasi)\s+pengungsian|pengungsian', tier: tier2, stage_hint: emergency_sheltering, fp: '로힝야 난민', source: knowledge}
+    - {pattern: 'dana\s+tunggu\s+hunian|\bDTH\b', tier: tier1, stage_hint: temporary_housing, fp: 'DTH 약어 충돌(case_sensitive 필요)', source: knowledge}
+    - {pattern: 'hunian\s+tetap|\bhuntap\b', tier: tier2, stage_hint: permanent_housing, fp: '드묾', source: knowledge}
+    - {pattern: 'pengungsi\w*\s+(\w+\s+){0,3}(sewa|kontrak|rumah\s+kerabat)', tier: tier2, stage_hint: temporary_housing, fp: '드묾', source: knowledge}
+  vi:
+    - {pattern: 'nhà\s+tạm(\s+bợ)?', tier: tier2, stage_hint: temporary_housing, fp: '빈곤 주거(nhà tạm bợ 철거 캠페인)', source: knowledge}
+    - {pattern: 'điểm\s+sơ\s+tán|nơi\s+sơ\s+tán|sơ\s+tán\s+dân', tier: tier2, stage_hint: emergency_sheltering, fp: '드묾', source: knowledge}
+    - {pattern: 'lều\s+bạt|lán\s+trại', tier: tier2, stage_hint: emergency_sheltering, fp: '건설 노동자 숙소', source: knowledge}
+    - {pattern: 'hỗ\s+trợ\s+(tiền\s+)?thuê\s+nhà', tier: tier2, stage_hint: temporary_housing, fp: '노동자 임대 지원(COVID)', source: knowledge}
+  zh:
+    - {pattern: '(过渡|過渡)(性)?(安置|板房|房|住房)', tier: tier1, stage_hint: temporary_housing, fp: '철거(拆迁) 과도 안치', source: knowledge}
+    - {pattern: '(临时|臨時)安置(点|點|区|區)?|安置(点|點)', tier: tier2, stage_hint: temporary_sheltering, fp: '拆迁安置(재개발 이주) 매우 많음', source: knowledge}
+    - {pattern: '(活动|活動)?板房', tier: tier2, stage_hint: temporary_housing, fp: '건설현장 숙소', source: knowledge}
+    - {pattern: '(应急|應急)?(避难|避難)(所|场所|場所)', tier: tier2, stage_hint: emergency_sheltering, fp: '방재 시설 건설 홍보', source: knowledge}
+    - {pattern: '(帐篷|帳篷)', tier: tier2, stage_hint: emergency_sheltering, fp: '캠핑', source: knowledge}
+    - {pattern: '投(亲|親)靠友', tier: tier2, stage_hint: temporary_sheltering, fp: '드묾', source: knowledge}
+  hi:
+    - {pattern: 'राहत\s+(शिविर|शिविरों|कैंप|केंद्र|केंद्रों)', tier: tier2, stage_hint: emergency_sheltering, fp: '폭동·분쟁 구호캠프(마니푸르)', source: knowledge}
+    - {pattern: 'अस्थायी\s+(आवास|आश्रय|शिविर|शेल्टर)', tier: tier1, stage_hint: ambiguous, fp: '노숙인 야간 쉼터(रैन बसेरा 계열)', source: knowledge}
+    - {pattern: 'आश्रय\s+(स्थल|स्थलों|केंद्र)', tier: tier2, stage_hint: emergency_sheltering, fp: '아동·여성 보호시설(आश्रय गृह)', source: knowledge}
+    - {pattern: 'विस्थापित\w*', tier: tier2, stage_hint: ambiguous, fp: '카슈미르 판디트 등 분쟁 이재민', source: knowledge}
+    - {pattern: 'तंबू|तंबुओं|टेंट', tier: tier2, stage_hint: emergency_sheltering, fp: '종교 축제(쿰브멜라) 텐트', source: knowledge}
+
+# ---------------------------------------------------------------------------
+# stage_ambiguity: stage_hint 'ambiguous' 또는 판정이 갈리는 경우 메모 (분류 프롬프트 지침 후보)
+stage_ambiguity:
+  - {term: 'hotel/motel programmes (TSA, 二次避難, sistemazione alberghiera, otel konaklama)', candidates: [temporary_sheltering, temporary_housing], note: 'Quarantelli는 일상 가사(취사·자립)가 재개되면 housing. 호텔은 취사 불가지만 수개월 지속(카트리나 TSA, 아마트리체 호텔 1년+). 기간이 아니라 가사 재개 여부로 판정하자는 규칙 필요'}
+  - {term: 'host family / relatives (親族宅, allegados, desalojados, akraba yanı)', candidates: [temporary_sheltering, temporary_housing], note: '단기 피신=sheltering, 장기 동거·임대료 분담=housing. 기사에 기간 정보가 드묾'}
+  - {term: 'rental subsidy (kira yardımı, CAS, bono de arriendo, 2,500 DH)', candidates: [temporary_housing, none], note: '현금 지원만 언급되고 실제 거주 형태가 불명인 경우 다수. 모로코 2,500DH는 텐트 거주자도 받으므로 housing 근거가 아님'}
+  - {term: 'container/tent camps managed long-term (konteyner yaşam alanı, tendopoli 수개월, 텐트촌)', candidates: [temporary_sheltering, temporary_housing], note: '튀르키예 konteyner kent은 가사 재개=housing, 대형 텐트촌(çadır kent)은 sheltering이나 1년 이상 지속 시 혼재'}
+  - {term: 'みなし避難所 / 二次避難所', candidates: [emergency_sheltering, temporary_sheltering], note: '행정 명칭은 避難所이나 실태는 숙박시설 장기 체류'}
+  - {term: '在宅避難 / 車中泊 / staying in damaged home', candidates: [emergency_sheltering, temporary_sheltering, none], note: '시설 밖 대피. 장소 기반 site 정의와 충돌 — site에 "dispersed" 형태 필요할 수 있음'}
+  - {term: '자주피난(自主避難) / 원전 장기피난(長期避難, 帰還困難)', candidates: [temporary_housing, permanent_housing], note: '후쿠시마 자주피난자는 みなし仮設 거주 후 공급 종료 → 사실상 이주. 10년 이상 지속'}
+  - {term: 'transitional shelter / T-shelter / abri transitoire', candidates: [temporary_housing, permanent_housing], note: '인도주의 용어상 업그레이드해 영구화 가능(progressive/core shelter). Quarantelli 단계와 1:1 대응 안 됨'}
+  - {term: '응급 주택 수리 (住宅の応急修理)', candidates: [permanent_housing, none], note: '원 주택 복귀이므로 permanent에 가까우나 수리 대기 중 거주 형태가 별도 문제'}
+  - {term: 'IDP camp / displacement site / 마니푸르 राहत शिविर', candidates: [temporary_sheltering, out_of_scope], note: '재난 vs 분쟁 이재 구분이 단계보다 먼저 필요(disaster 연결 단계에서 배제)'}
+  - {term: 'protracted displacement, still living in …', candidates: [any], note: '장기화 표지는 단계 정보가 아님. 후속 명사(tent/trailer/hotel)로 단계 판정'}
