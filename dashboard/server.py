@@ -180,7 +180,7 @@ def _humanitarian() -> dict:
     # ReliefWeb (월별 파일)
     rw_dir = RAW / "reliefweb/reports"
     months = sorted(p.stem for p in rw_dir.glob("*.jsonl")) if rw_dir.exists() else []
-    rw_total, rw_formats = 0, Counter()
+    rw_total, rw_formats, rw_global = 0, Counter(), Counter()
     for p in (rw_dir.glob("*.jsonl") if rw_dir.exists() else []):
         for r in _jsonl(p):
             rw_total += 1
@@ -191,6 +191,8 @@ def _humanitarian() -> dict:
                 c = pycountry.countries.get(alpha_3=pc.upper())
                 if c:
                     per_country[c.alpha_2]["reliefweb_reports"] += 1
+                else:
+                    rw_global[pc.lower()] += 1  # wld = World 등 국가가 아닌 단위
     today = date.today()
     first = date(1990, 1, 1)
     months_expected = (today.year - first.year) * 12 + today.month
@@ -215,7 +217,8 @@ def _humanitarian() -> dict:
          "metadata_unit": "reports, Shelter and NFI theme", "months_done": len(months),
          "months_expected": months_expected, "last_month": months[-1] if months else None,
          "calls_today": calls_today, "daily_cap": 900, "formats": rw_formats.most_common(8),
-         "stage": "metadata listing" if len(months) < months_expected else "metadata done; bodies next"},
+         "stage": "metadata listing" if len(months) < months_expected else "metadata done; bodies next",
+         "global_reports": sum(rw_global.values()), "global_breakdown": rw_global.most_common()},
         {"id": "shelter_projects", "name": "Shelter Projects", "access": "Manual download (site unreachable from server)",
          "metadata": len(list((RAW / "manual/shelter_projects").glob("*.pdf"))) if (RAW / "manual/shelter_projects").exists() else 0,
          "metadata_unit": "case-study books downloaded"},

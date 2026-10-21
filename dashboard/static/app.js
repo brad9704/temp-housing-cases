@@ -38,7 +38,17 @@
     A: "Press and broadcast both listable", B: "Only one side listable", C: "Recent sitemaps only", D: "Tried, nothing listable",
   };
 
-  let data = null, mode = "past", selected = null, world = null;
+  let data = null, mode = "any", selected = null, world = null;
+  const NAME_ALIAS = { Somaliland: "706" };  // 지도에 ISO 코드가 없는 지역: 문서는 소말리아로 분류된다
+  const NO_ISO = new Set(["Kosovo", "N. Cyprus"]);
+  const LISTABLE = ["route_deep", "route_mid", "route_alt", "wayback_only", "route_recent"];
+  const key = (d) => d.id || NAME_ALIAS[d.properties.name] || null;
+  function anyState(num) {
+    const nc = data._byNumeric.news[num], hc = data._byNumeric.hum[num];
+    const news = !!(nc && nc.outlets.some((o) => LISTABLE.includes(o.class)));
+    const docs = !!(hc && hc.total);
+    return news && docs ? "both" : docs ? "docs" : news ? "news" : "none";
+  }
 
   // ---------- top strip and sources ----------
   function renderStrip(sys) {
@@ -94,12 +104,28 @@
         ${body}
         <div class="src-access">${esc(s.access)}</div>
       </article>`;
-    }).join("");
+    }).join("") + globalCard(h);
+  }
+
+  function globalCard(h) {
+    const rw = h.sources.find((s) => s.id === "reliefweb");
+    if (!rw || !rw.global_reports) return "";
+    const label = (c) => (c === "wld" ? "World" : c.toUpperCase());
+    return `<article class="src">
+      <div class="src-head"><span class="src-name">Global and regional reports</span><span class="pill idle">Not on the map</span></div>
+      <div><div class="big">${n(rw.global_reports)}</div><div class="unit">ReliefWeb reports whose main subject is not a single country</div></div>
+      <ul class="facts">${(rw.global_breakdown || []).map((g) => `<li>${esc(label(g[0]))}: <b>${n(g[1])}</b></li>`).join("")}</ul>
+      <div class="src-access">Counted in ReliefWeb totals; excluded from country figures</div>
+    </article>`;
   }
 
   // ---------- map ----------
-  function colorFor(num) {
+  function colorFor(num, name) {
+    if (!num) return css("--land-none");
     const nc = data._byNumeric.news[num], hc = data._byNumeric.hum[num];
+    if (mode === "any") {
+      return css({ both: "--ramp-4", docs: "--ramp-2", news: "--ramp-3", none: "--land-none" }[anyState(num)]);
+    }
     if (mode === "hum") {
       const t = hc ? hc.total : 0;
       if (!t) return css("--land-none");
@@ -112,7 +138,9 @@
 
   function renderLegend() {
     let items;
-    if (mode === "hum") {
+    if (mode === "any") {
+      items = [["--ramp-4", "News and documents"], ["--ramp-3", "News only"], ["--ramp-2", "Documents only"], ["--land-none", "Nothing yet, or no ISO code in the map (Kosovo, N. Cyprus)"]];
+    } else if (mode === "hum") {
       items = [["--ramp-4", "5,000+ documents"], ["--ramp-3", "500–4,999"], ["--ramp-2", "50–499"], ["--ramp-1", "1–49"], ["--land-none", "None"]];
     } else {
       const tiers = mode === "past" ? ["A", "B", "C", "D"] : ["A", "B", "D"];
@@ -124,7 +152,13 @@
   function tipHtml(num, name) {
     const nc = data._byNumeric.news[num], hc = data._byNumeric.hum[num];
     let h = `<b>${esc(nc?.name || hc?.name || name)}</b>`;
-    if (mode === "hum") {
+    if (!num) return h + "<br>No ISO code in the map data; documents cannot be joined";
+    if (name === "Somaliland") h += " <span style=\"color:var(--muted)\">(documents filed under Somalia)</span>";
+    if (mode === "any") {
+      const st = anyState(num);
+      h += "<br>" + { both: "Listable news outlets and humanitarian documents", docs: "Humanitarian documents only", news: "Listable news outlets only", none: "Nothing collected yet" }[st];
+      h += `<br>Documents ${n(hc?.total || 0)} · outlets tried ${nc ? nc.outlets.length : 0}`;
+    } else if (mode === "hum") {
       h += hc ? `<br>IFRC documents ${n(hc.ifrc_docs || 0)} · fetched ${n(hc.ifrc_fetched || 0)}<br>ReliefWeb reports ${n(hc.reliefweb_reports || 0)}` : "<br>No humanitarian documents";
     } else if (nc) {
       const ok = nc.outlets.filter((o) => ["route_deep", "route_mid", "route_alt", "wayback_only"].includes(o.class)).length;
@@ -144,12 +178,12 @@
     const path = d3.geoPath(proj);
     const tip = $("#tip"), box = $(".mapbox");
     svg.selectAll("path.c").data(land, (d) => d.id).join("path")
-      .attr("class", (d) => "c" + (selected && d.id === selected.numeric ? " sel" : ""))
+      .attr("class", (d) => "c" + (selected && key(d) === selected.numeric ? " sel" : ""))
       .attr("d", path)
-      .attr("fill", (d) => colorFor(d.id))
-      .attr("tabindex", (d) => (data._byNumeric.news[d.id] || data._byNumeric.hum[d.id] ? 0 : null))
+      .attr("fill", (d) => colorFor(key(d), d.properties.name))
+      .attr("tabindex", (d) => (key(d) && (data._byNumeric.news[key(d)] || data._byNumeric.hum[key(d)]) ? 0 : null))
       .on("mousemove", (ev, d) => {
-        tip.innerHTML = tipHtml(d.id, d.properties.name);
+        tip.innerHTML = tipHtml(key(d), d.properties.name);
         tip.hidden = false;
         const r = box.getBoundingClientRect();
         let x = ev.clientX - r.left + 14, y = ev.clientY - r.top + 14;
@@ -158,8 +192,8 @@
         tip.style.top = y + "px";
       })
       .on("mouseleave", () => { tip.hidden = true; })
-      .on("click", (ev, d) => select(d.id, d.properties.name))
-      .on("keydown", (ev, d) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(d.id, d.properties.name); } });
+      .on("click", (ev, d) => key(d) && select(key(d), d.properties.name))
+      .on("keydown", (ev, d) => { if ((ev.key === "Enter" || ev.key === " ") && key(d)) { ev.preventDefault(); select(key(d), d.properties.name); } });
     renderLegend();
   }
 
@@ -185,7 +219,7 @@
       h += "</ul>";
     }
     $("#detail").innerHTML = h;
-    d3.selectAll("#map path.c").classed("sel", (d) => d.id === num);
+    d3.selectAll("#map path.c").classed("sel", (d) => key(d) === num);
     document.querySelectorAll("#ctable tbody tr").forEach((tr) => tr.classList.toggle("sel", tr.dataset.num === num));
   }
 
