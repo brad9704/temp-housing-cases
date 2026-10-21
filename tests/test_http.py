@@ -193,3 +193,13 @@ Content-Signal: ai-input=yes
 Disallow: /
 """
     assert parse_content_signals(txt) == {"search": "yes", "ai-train": "yes", "ai-input": "no"}
+
+
+def test_robots_exception_only_for_listed_host(server):
+    cfg = _cfg(None)
+    c = PoliteClient(cfg, rng=random.Random(4))
+    with pytest.raises(RobotsDisallowed):
+        c.fetch(f"{server}/private/y")
+    cfg.robots_exceptions = frozenset({"127.0.0.1"})
+    r = c.fetch(f"{server}/private/y")
+    assert r.status == 200 and r.robots_exception

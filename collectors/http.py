@@ -95,6 +95,8 @@ class CrawlConfig:
     robots_ttl: float = 86400.0
     # host -> (min_delay, max_delay, timeout). 기본값보다 느슨하게만 쓸 수 있다.
     domain_overrides: dict[str, tuple[float, float, float]] = field(default_factory=dict)
+    # robots 원칙의 명시적 예외: 운영 기관이 승인한 API 호스트만 (CLAUDE.md 기록 필수)
+    robots_exceptions: frozenset[str] = frozenset()
 
     def for_host(self, host: str) -> tuple[float, float, float]:
         mn, mx, to = self.domain_overrides.get(host, (self.min_delay, self.max_delay, self.timeout))
@@ -114,6 +116,9 @@ class CrawlConfig:
             timeout=float(os.environ.get("CRAWL_TIMEOUT_SEC", 30.0)),
             state_dir=os.environ.get("CRAWL_STATE_DIR", "data/cache/crawl_state") or None,
             domain_overrides=parse_domain_overrides(os.environ.get("CRAWL_DOMAIN_OVERRIDES", "")),
+            robots_exceptions=frozenset(
+                h.strip().lower() for h in os.environ.get("CRAWL_ROBOTS_EXCEPTIONS", "").split(",") if h.strip()
+            ),
         )
         if cfg.min_delay < 1.0 or cfg.max_delay < cfg.min_delay:
             raise RuntimeError("딜레이 설정 오류: 1 <= MIN_DELAY <= MAX_DELAY 이어야 합니다.")
@@ -130,6 +135,7 @@ class FetchResult:
     fetched_at: str
     waited_sec: float
     attempts: int
+    robots_exception: bool = False
 
 
 @dataclass
@@ -283,7 +289,12 @@ class PoliteClient:
         self._load_robots(origin, st)
         return st.robots_mode
 
+    def is_robots_exception(self, url: str) -> bool:
+        return (urlsplit(url).hostname or "").lower() in self.cfg.robots_exceptions
+
     def allowed(self, url: str) -> bool:
+        if self.is_robots_exception(url):
+            return True
         origin = self._origin(url)
         st = self._state(origin)
         self._load_robots(origin, st)
@@ -347,5 +358,6 @@ class PoliteClient:
                     fetched_at=datetime.now(timezone.utc).isoformat(),
                     waited_sec=round(waited, 3),
                     attempts=attempt,
+                    robots_exception=self.is_robots_exception(url),
                 )
         raise FetchFailed(f"{url}: {last_err}")
