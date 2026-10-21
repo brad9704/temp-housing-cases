@@ -19,7 +19,7 @@ Disasters are defined from the collected texts. External disaster databases (EM-
 
 This project collects only what sites allow, under an honest identity.
 
-- One fixed User-Agent, `Mozilla/5.0 (compatible; UNISTDisasterHousingBot/<version>[; +<info URL>])`. No browser or crawler impersonation, no UA or proxy rotation, no TLS fingerprint spoofing.
+- One fixed User-Agent, `Mozilla/5.0 (compatible; UNISTDisasterHousingBot/<version>; +https://brad9704.github.io/temp-housing-cases/)` ([bot information page](https://brad9704.github.io/temp-housing-cases/)). No browser or crawler impersonation, no UA or proxy rotation, no TLS fingerprint spoofing.
 - robots.txt is honoured, including `Crawl-delay`. An unreachable robots.txt is treated as "disallow all".
 - Requests are paced per domain: a random delay between configured bounds, held across processes with a file lock. There is never more than one concurrent request per domain. `Retry-After` is honoured, followed by exponential backoff.
 - Consecutive 403/429 responses or bot challenges (e.g. Cloudflare) stop collection from that domain. Challenges are never solved or bypassed. The legitimate routes are permission from the outlet, verified-bot identity (e.g. Web Bot Auth), or licensed databases.
