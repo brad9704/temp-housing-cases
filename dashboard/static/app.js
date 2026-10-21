@@ -177,9 +177,10 @@
       h += `<p class="meta">Before 2021: ${esc(TIER[nc.tier_past])} · From 2021: ${esc(TIER[nc.tier_recent])}</p><ul class="olist">`;
       h += nc.outlets.map((o) => {
         const [cls, label] = CLASS[o.class] || ["idle", o.class];
+        const col = o.listed ? ` · <b>${n(o.listed)}</b> articles listed` : o.collect_state === "listing" ? " · listing…" : "";
         const why = o.class === "blocked" ? (VERDICT[o.verdict] || o.verdict) : o.year ? (o.class === "route_recent" ? "from " : "to ") + o.year : "";
         return `<li><span class="on">${esc(o.name)}</span><span class="pill ${cls}">${esc(label)}</span>
-          <span class="od">${o.role ? `<span class="role">${esc(ROLE[o.role] || o.role)}</span> · ` : ""}${esc(TYPE[o.type] || o.type)} · ${esc(o.domain)}${why ? " · " + esc(why) : ""}</span></li>`;
+          <span class="od">${o.role ? `<span class="role">${esc(ROLE[o.role] || o.role)}</span> · ` : ""}${esc(TYPE[o.type] || o.type)} · ${esc(o.domain)}${why ? " · " + esc(why) : ""}${col}</span></li>`;
       }).join("");
       h += "</ul>";
     }
@@ -210,6 +211,18 @@
     });
   }
 
+  // ---------- news collection ----------
+  function renderCollection(news) {
+    const st = { listing: ["info", "Listing"], listed: ["good", "Listed"], "not started": ["idle", "Not started"] };
+    const rows = (news.collection || []).slice().sort((a, b) => a.country.localeCompare(b.country) || a.role.localeCompare(b.role));
+    $("#coltable tbody").innerHTML = rows.map((c) => {
+      const [cls, label] = st[c.state] || ["idle", c.state];
+      return `<tr><td>${esc(c.name)}</td><td>${esc(c.country)}</td><td><span class="role">${esc(ROLE[c.role] || c.role)}</span></td>
+        <td><span class="pill ${cls}">${esc(label)}</span>${c.errors ? ` <span class="pill warn">${n(c.errors)} errors</span>` : ""}</td>
+        <td class="num">${n(c.listed)}</td><td class="num">${n(c.sitemap_requests)}</td><td class="num">${n(c.fetched)}</td></tr>`;
+    }).join("") || '<tr><td colspan="7">No pilot outlets in the registry.</td></tr>';
+  }
+
   // ---------- load ----------
   function index(d) {
     const news = {}, hum = {};
@@ -229,6 +242,7 @@
       renderStrip(data.system);
       renderSources(data.humanitarian, data.system.jobs);
       renderNews(data.news, data.humanitarian);
+      renderCollection(data.news);
       drawMap();
       if (selected) select(selected.numeric, "");
     } catch (e) {

@@ -70,12 +70,44 @@ def _country_name(alpha2: str) -> str:
 
 
 # ---- news -------------------------------------------------------------------------------
+def _count_lines(p: Path) -> int:
+    n = 0
+    with p.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            n += chunk.count(b"\n")
+    return n
+
+
+def _news_collection(ids_by_domain: dict) -> list[dict]:
+    """언론사별 목록화·수집 진행. 작업 중이면 .part 파일 줄 수로 센다."""
+    base = RAW / "news"
+    out = []
+    jobs = " ".join(j["job"] for j in _jobs())
+    for oid, (domain, role, country, name) in sorted(ids_by_domain.items()):
+        d = base / oid
+        rep = {}
+        if (d / "list_report.json").exists():
+            rep = json.loads((d / "list_report.json").read_text())
+        listed = _count_lines(d / "urls.jsonl") if (d / "urls.jsonl").exists() else 0
+        partial = _count_lines(d / "urls.part") if (d / "urls.part").exists() else 0
+        running = f"news_sitemap list {oid}" in jobs
+        state = "listing" if running else "listed" if listed else "not started"
+        out.append({"outlet_id": oid, "name": name, "domain": domain, "role": role, "country": country,
+                    "state": state, "listed": listed or partial, "sitemap_requests": rep.get("sitemap_requests"),
+                    "errors": rep.get("errors"), "fetched": 0})
+    return out
+
+
 def _news() -> dict:
-    roles = {}
+    roles, pilots = {}, {}
     oc = ROOT / "registry/outlets.csv"
     if oc.exists():
         for r in csv.DictReader(oc.open()):
             roles[r["domain"]] = r["role"]
+            if r["role"] in ("core_daily", "core_broadcaster", "regional_probe"):
+                pilots[r["outlet_id"]] = (r["domain"], r["role"], r["country"], r["name"])
+    collection = _news_collection(pilots)
+    by_domain = {c["domain"]: c for c in collection}
     by_country: dict[str, list] = defaultdict(list)
     sc = ROOT / "registry/screening.csv"
     if sc.exists():
@@ -85,6 +117,8 @@ def _news() -> dict:
                 "class": r["collectability"], "verdict": r["verdict"],
                 "year": int(r["archive_year"]) if r["archive_year"] else None,
                 "role": roles.get(r["domain"], ""), "source": r["source"],
+                "listed": (by_domain.get(r["domain"]) or {}).get("listed"),
+                "collect_state": (by_domain.get(r["domain"]) or {}).get("state"),
             })
     countries = {}
     for cc, outlets in by_country.items():
@@ -103,7 +137,8 @@ def _news() -> dict:
             "outlets": sorted(outlets, key=lambda o: (o["role"] == "", o["class"] in ("blocked", "no_route"), o["name"])),
         }
     classes = Counter(o["class"] for v in by_country.values() for o in v)
-    return {"countries": countries, "class_counts": classes, "outlets": sum(classes.values())}
+    return {"countries": countries, "class_counts": classes, "outlets": sum(classes.values()),
+            "collection": collection}
 
 
 # ---- humanitarian ------------------------------------------------------------------------
