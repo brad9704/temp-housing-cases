@@ -124,7 +124,7 @@ def test_env_rejects_missing_token(monkeypatch):
 def _cfg(state_dir):
     return CrawlConfig(
         user_agent="TestBot/0.1", bot_token="TestBot", min_delay=0.2, max_delay=0.3,
-        max_retries=3, timeout=5, backoff_base=0.1, state_dir=str(state_dir),
+        max_retries=3, timeout=5, backoff_base=0.1, state_dir=str(state_dir) if state_dir else None,
     )
 
 
