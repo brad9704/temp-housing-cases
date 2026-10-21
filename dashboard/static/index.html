@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shelter Sources Monitor</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <h1>Shelter Sources Monitor</h1>
+      <p class="sub">Collection progress for news outlets and humanitarian documents on emergency sheltering and temporary housing.</p>
+    </div>
+    <div class="stamp">
+      <span id="updated">Loading…</span>
+      <button id="refresh" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <section class="strip" aria-label="Server">
+    <div class="kv"><span class="k">Disk free</span><span class="v" id="disk">–</span></div>
+    <div class="kv"><span class="k">Raw data</span><span class="v" id="raw">–</span></div>
+    <div class="kv grow"><span class="k">Running jobs</span><span class="v jobs" id="jobs">–</span></div>
+  </section>
+
+  <section aria-labelledby="h-hum">
+    <h2 id="h-hum">Humanitarian sources</h2>
+    <div class="sources" id="sources"></div>
+  </section>
+
+  <section class="mapsec" aria-labelledby="h-map">
+    <div class="maphead">
+      <h2 id="h-map">By country</h2>
+      <div class="seg" role="tablist" aria-label="Map layer">
+        <button type="button" role="tab" data-mode="past" aria-selected="true">News · events before 2021</button>
+        <button type="button" role="tab" data-mode="recent" aria-selected="false">News · events from 2021</button>
+        <button type="button" role="tab" data-mode="hum" aria-selected="false">Humanitarian documents</button>
+      </div>
+    </div>
+    <div class="mapgrid">
+      <div class="mapbox">
+        <svg id="map" role="img" aria-label="World map of collection status"></svg>
+        <div class="legend" id="legend"></div>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+      <aside class="detail" id="detail" aria-live="polite">
+        <p class="empty">Select a country on the map or in the table below.</p>
+      </aside>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-news">
+    <h2 id="h-news">News outlets</h2>
+    <div class="classbar" id="classbar"></div>
+    <div class="tablewrap">
+      <table id="ctable">
+        <thead><tr>
+          <th scope="col">Country</th>
+          <th scope="col" class="num">Outlets tried</th>
+          <th scope="col" class="num">Listable</th>
+          <th scope="col" class="num">Blocked</th>
+          <th scope="col">Before 2021</th>
+          <th scope="col">From 2021</th>
+          <th scope="col" class="num">IFRC docs</th>
+          <th scope="col" class="num">ReliefWeb reports</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="foot">Read-only view of the local research server. Figures are recomputed at most once a minute. Raw text, file paths and credentials are never shown here.</footer>
+</div>
+<script src="/static/vendor/d3.min.js"></script>
+<script src="/static/vendor/topojson-client.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

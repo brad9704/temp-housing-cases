@@ -23,3 +23,8 @@ backup:
 	else \
 	  mkdir -p "$(BACKUP_DIR)/raw" && rsync -a --info=stats1 "$(RAW_DIR)/" "$(BACKUP_DIR)/raw/"; \
 	fi
+
+# 수집 진행 대시보드 (같은 네트워크에서 http://<서버 IP>:8090)
+.PHONY: dashboard
+dashboard:
+	uv run python -m dashboard.server --host 0.0.0.0 --port 8090

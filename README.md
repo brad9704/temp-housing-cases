@@ -98,6 +98,9 @@ uv run python -m collectors.recon_probe validate registry/outlet_profiles/*.json
 uv run python -m collectors.ifrc_go list-documents
 uv run python -m collectors.ifrc_go summary
 
+# Progress dashboard on the local network (http://<server>:8090)
+make dashboard
+
 # Back up raw data after each collection batch (needs BACKUP_DIR in .env)
 make backup
 ```

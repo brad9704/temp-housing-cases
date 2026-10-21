@@ -19,6 +19,7 @@ dependencies = [
     "httpx",
     "krippendorff",
     "phonenumbers>=9.0.41",
+    "pycountry>=26.2.16",
 ]
 
 [project.optional-dependencies]
