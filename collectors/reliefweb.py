@@ -47,7 +47,7 @@ def _raw_dir() -> Path:
 
 def _code_state() -> dict:
     head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-    dirty = bool(subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True).stdout.strip())
+    dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], capture_output=True, text=True).stdout.strip())
     return {"code_commit": head, "code_dirty": dirty}
 
 
