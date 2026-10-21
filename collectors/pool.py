@@ -89,7 +89,7 @@ def build(screen_files: list[str], profiles_dir: str = "registry/outlet_profiles
         row = from_profile(json.loads(p.read_text()))
         rows[row["domain"]] = row
     for f in screen_files:
-        for line in Path(f).read_text().splitlines():
+        for line in Path(f).read_text().split("\n"):
             if not line.strip():
                 continue
             row = from_screen(json.loads(line))

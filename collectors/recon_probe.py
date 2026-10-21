@@ -549,7 +549,7 @@ def cmd_screen_batch(a) -> None:
     rows = list(csv.DictReader(open(a.candidates)))
     done = set()
     if Path(a.out).exists() and not a.force:
-        done = {json.loads(l)["domain"] for l in Path(a.out).read_text().splitlines() if l.strip()}
+        done = {json.loads(l)["domain"] for l in Path(a.out).read_text().split("\n") if l.strip()}
     todo, seen = [], set()
     for r in rows:
         d = urlsplit(r["domain"] if "//" in r["domain"] else "https://" + r["domain"]).netloc

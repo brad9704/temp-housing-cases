@@ -73,7 +73,7 @@ def cmd_list_documents(a) -> None:
 
 
 def cmd_summary(a) -> None:
-    docs = [json.loads(l) for l in (_out_dir() / "documents.jsonl").read_text().splitlines()]
+    docs = [json.loads(l) for l in (_out_dir() / "documents.jsonl").read_text().split("\n") if l.strip()]
     groups = Counter(d["group"] for d in docs)
     year = Counter((d.get("lastmod") or "????")[:4] for d in docs)
     print(json.dumps({"documents": len(docs), "groups": len(groups),

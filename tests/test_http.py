@@ -203,3 +203,18 @@ def test_robots_exception_only_for_listed_host(server):
     cfg.robots_exceptions = frozenset({"127.0.0.1"})
     r = c.fetch(f"{server}/private/y")
     assert r.status == 200 and r.robots_exception
+
+
+def test_reliefweb_masks_appname_in_errors(monkeypatch, tmp_path):
+    import collectors.reliefweb as rw
+    from collectors.http import FetchFailed
+    monkeypatch.setenv("RELIEFWEB_APP_NAME", "secret-app-123")
+    monkeypatch.setenv("CRAWL_ROBOTS_EXCEPTIONS", "api.reliefweb.int")
+    monkeypatch.setenv("CRAWL_STATE_DIR", str(tmp_path))
+    api = rw.Api()
+    def boom(url):
+        raise FetchFailed(f"{url}: reset")
+    monkeypatch.setattr(api.client, "fetch", boom)
+    with pytest.raises(FetchFailed) as ei:
+        api.get([("limit", "0")])
+    assert "secret-app-123" not in str(ei.value) and "<appname>" in str(ei.value)

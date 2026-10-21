@@ -71,7 +71,7 @@ def cmd_summary(a) -> None:
     out = _out_dir()
     types = json.loads((out / "disaster_types.json").read_text())
     tname = {t["id"]: t["name"] for t in types.get("results", types)}
-    recs = [json.loads(l) for l in (out / "appeal_documents.jsonl").read_text().splitlines()]
+    recs = [json.loads(l) for l in (out / "appeal_documents.jsonl").read_text().split("\n") if l.strip()]
     doc_type = Counter(r.get("type") for r in recs)
     dtype = Counter(tname.get(((r.get("appeal") or {}).get("event") or {}).get("dtype"), "?") for r in recs)
     year = Counter((r.get("created_at") or "????")[:4] for r in recs)

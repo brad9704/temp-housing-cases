@@ -21,7 +21,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode
 
-from collectors.http import PoliteClient
+from collectors.http import FetchFailed, PoliteClient
 
 API = "https://api.reliefweb.int/v2/reports"
 PAGE = 1000
@@ -70,9 +70,16 @@ class Api:
         self.counter.write_text(str(n + 1))
         return n + 1
 
+    def _mask(self, msg: str) -> str:
+        return msg.replace(self.app, "<appname>")
+
     def get(self, params: list[tuple[str, str]]) -> dict:
         self._bump()
-        r = self.client.fetch(f"{API}?{urlencode([('appname', self.app), *params])}")
+        try:
+            r = self.client.fetch(f"{API}?{urlencode([('appname', self.app), *params])}")
+        except FetchFailed as e:
+            # 오류 메시지에 요청 URL(=appname)이 들어가므로 가린 뒤 다시 던진다
+            raise FetchFailed(self._mask(str(e))) from None
         d = json.loads(r.content)
         if r.status != 200:
             raise RuntimeError(f"HTTP {r.status}: {d.get('error')}")
@@ -137,13 +144,16 @@ def cmd_list_reports(a) -> None:
             print(f"{label}: {len(recs)} (total {total})", flush=True)
     except DailyCapReached as e:
         print(f"중단: {e}. 내일 같은 명령을 다시 실행하면 이어서 받습니다.")
+    except FetchFailed as e:
+        print(f"중단(재시도 소진): {e}. 같은 명령을 다시 실행하면 끝난 달은 건너뜁니다.")
     print(f"months done {done}, skipped (already saved) {skipped}")
 
 
 def cmd_summary(a) -> None:
     recs = []
     for p in sorted((_raw_dir() / "reports").glob("*.jsonl")):
-        recs += [json.loads(l) for l in p.read_text().splitlines() if l.strip()]
+        # splitlines()는 U+2028 등에서도 나누므로 \n으로만 자른다
+        recs += [json.loads(l) for l in p.read_text().split("\n") if l.strip()]
     def flat(r, key, sub):
         v = r.get(key) or []
         v = v if isinstance(v, list) else [v]
