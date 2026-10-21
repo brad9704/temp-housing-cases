@@ -92,9 +92,26 @@ def _news_collection(ids_by_domain: dict) -> list[dict]:
         partial = _count_lines(d / "urls.part") if (d / "urls.part").exists() else 0
         running = f"news_sitemap list {oid}" in jobs
         state = "listing" if running else "listed" if listed else "not started"
+        started = finished = None
+        src = d / ("urls.part" if running else "urls.jsonl")
+        if src.exists() and src.stat().st_size:
+            with src.open() as fh:
+                first = fh.readline()
+            try:
+                started = json.loads(first)["_meta"]["listed_at"]
+            except (ValueError, KeyError):
+                pass
+        if not running and (d / "list_report.json").exists():
+            finished = datetime.fromtimestamp((d / "list_report.json").stat().st_mtime, timezone.utc).isoformat()
+        runtime = None
+        if started:
+            t0 = datetime.fromisoformat(started).timestamp()
+            t1 = datetime.fromisoformat(finished).timestamp() if finished else time.time()
+            runtime = round(t1 - t0)
         out.append({"outlet_id": oid, "name": name, "domain": domain, "role": role, "country": country,
                     "state": state, "listed": listed or partial, "sitemap_requests": rep.get("sitemap_requests"),
-                    "errors": rep.get("errors"), "fetched": 0})
+                    "errors": rep.get("errors"), "error_samples": rep.get("error_samples") or [],
+                    "started_at": started, "finished_at": finished, "runtime_sec": runtime, "fetched": 0})
     return out
 
 
@@ -152,11 +169,14 @@ def _fetch_progress(source: str) -> dict:
     files = sum(1 for r in ok for f in (r.get("files") or []) if f.get("ok"))
     byt = sum(r.get("bytes", 0) + sum(f.get("bytes", 0) for f in (r.get("files") or []) if f.get("ok")) for r in ok)
     errors = Counter((r.get("error") or "?").split(":")[0][:40] for r in last.values() if not r.get("ok"))
+    failed = sorted((r for r in last.values() if not r.get("ok")), key=lambda r: r.get("fetched_at") or "")
+    error_samples = [f"{r['doc_id']}: {(r.get('error') or '?')[:180]}" for r in failed[-5:]]
     times = [r.get("fetched_at") for r in last.values() if r.get("fetched_at")]
     return {
         "selected": len(selected), "audit_sample": sum(1 for s in selected if s.get("audit")),
         "attempted": len(last), "ok": len(ok), "failed": len(last) - len(ok), "attached_files": files,
-        "bytes": byt, "errors": errors.most_common(5), "last_fetch": max(times) if times else None,
+        "bytes": byt, "errors": errors.most_common(5), "error_samples": error_samples,
+        "last_fetch": max(times) if times else None,
         "_selected": selected, "_ok_ids": {r["doc_id"] for r in ok},
     }
 
@@ -196,6 +216,14 @@ def _humanitarian() -> dict:
     today = date.today()
     first = date(1990, 1, 1)
     months_expected = (today.year - first.year) * 12 + today.month
+    rw_errors = []
+    log = RAW / "reliefweb/run.log"
+    if log.exists():
+        rw_errors = [l.strip()[:220] for l in log.read_text(errors="replace").split("\n")
+                     if l.startswith("중단") or "Error" in l][-3:]
+        app = os.environ.get("RELIEFWEB_APP_NAME", "")
+        if app:
+            rw_errors = [l.replace(app, "<appname>") for l in rw_errors]
     calls_file = STATE / f"reliefweb_calls_{today.isoformat()}.txt"
     calls_today = int(calls_file.read_text()) if calls_file.exists() else 0
 
@@ -218,7 +246,8 @@ def _humanitarian() -> dict:
          "months_expected": months_expected, "last_month": months[-1] if months else None,
          "calls_today": calls_today, "daily_cap": 900, "formats": rw_formats.most_common(8),
          "stage": "metadata listing" if len(months) < months_expected else "metadata done; bodies next",
-         "global_reports": sum(rw_global.values()), "global_breakdown": rw_global.most_common()},
+         "global_reports": sum(rw_global.values()), "global_breakdown": rw_global.most_common(),
+         "error_samples": rw_errors},
         {"id": "shelter_projects", "name": "Shelter Projects", "access": "Manual download (site unreachable from server)",
          "metadata": len(list((RAW / "manual/shelter_projects").glob("*.pdf"))) if (RAW / "manual/shelter_projects").exists() else 0,
          "metadata_unit": "case-study books downloaded"},
@@ -233,6 +262,26 @@ def _humanitarian() -> dict:
 
 
 # ---- system ------------------------------------------------------------------------------
+def _boot_time() -> float:
+    for line in Path("/proc/stat").read_text().split("\n"):
+        if line.startswith("btime "):
+            return float(line.split()[1])
+    return 0.0
+
+
+_BOOT = _boot_time()
+_TICKS = os.sysconf("SC_CLK_TCK")
+
+
+def _proc_start(pid: str) -> float | None:
+    try:
+        stat = (Path("/proc") / pid / "stat").read_text()
+        fields = stat[stat.rindex(")") + 2:].split()
+        return _BOOT + int(fields[19]) / _TICKS  # 22번째 필드: 부팅 후 시작 tick
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 def _jobs() -> list[dict]:
     out = []
     for p in Path("/proc").iterdir():
@@ -248,12 +297,10 @@ def _jobs() -> list[dict]:
             i = a.index("-m")
             mod = a[i + 1] if i + 1 < len(a) else ""
             if mod.startswith("collectors.") and mod != "collectors.http":
-                try:
-                    started = (p / "stat").stat().st_mtime
-                except OSError:
-                    started = None
+                started = _proc_start(p.name)
                 out.append({"pid": int(p.name), "job": " ".join([mod.split(".", 1)[1], *a[i + 2:i + 4]]),
-                            "since": datetime.fromtimestamp(started, timezone.utc).isoformat() if started else None})
+                            "since": datetime.fromtimestamp(started, timezone.utc).isoformat() if started else None,
+                            "runtime_sec": round(time.time() - started) if started else None})
     return sorted(out, key=lambda j: j["pid"])
 
 

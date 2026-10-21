@@ -6,6 +6,19 @@
   const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const bytes = (b) => (b >= 1e9 ? (b / 1e9).toFixed(2) + " GB" : b >= 1e6 ? (b / 1e6).toFixed(1) + " MB" : b >= 1e3 ? (b / 1e3).toFixed(0) + " KB" : (b || 0) + " B");
+  const dur = (sec) => {
+    if (sec == null) return "–";
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s2 = sec % 60;
+    return h ? `${h}h ${String(m).padStart(2, "0")}m` : m ? `${m}m ${String(s2).padStart(2, "0")}s` : `${s2}s`;
+  };
+  const runPill = (label = "Running") => `<span class="pill info run"><span class="spin" aria-hidden="true"></span>${esc(label)}</span>`;
+  let errSeq = 0;
+  const errPill = (count, samples, inline = true) => {
+    if (!count) return "";
+    const id = "err" + (++errSeq);
+    const msg = (samples && samples.length ? samples : ["No message recorded."]).join("\n");
+    return `<button type="button" class="pill bad errbtn" aria-expanded="false" aria-controls="${id}" data-msg="${esc(msg)}" data-inline="${inline}">${n(count)} error${count === 1 ? "" : "s"}</button>`;
+  };
   const ago = (iso) => {
     if (!iso) return "never";
     const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -56,7 +69,7 @@
     $("#disk").innerHTML = `${n(Math.round(free))} GB ${warn ? '<span class="pill bad">Below minimum</span>' : ""}`;
     $("#raw").textContent = sys.raw_gb >= 1 ? sys.raw_gb.toFixed(2) + " GB" : Math.round(sys.raw_gb * 1000) + " MB";
     $("#jobs").innerHTML = sys.jobs.length
-      ? sys.jobs.map((j) => `<span class="pill info" title="started ${esc(ago(j.since))}">${esc(j.job)}</span>`).join("")
+      ? sys.jobs.map((j) => `<span class="pill info run" title="started ${esc(new Date(j.since).toLocaleString())}"><span class="spin" aria-hidden="true"></span>${esc(j.job)} · ${esc(dur(j.runtime_sec))}</span>`).join("")
       : '<span class="pill idle">None</span>';
   }
 
@@ -73,6 +86,8 @@
   function renderSources(h, jobs) {
     $("#sources").innerHTML = h.sources.map((s) => {
       const [cls, label] = sourceState(s, jobs);
+      const job = jobs.find((j) => (s.id === "reliefweb" ? j.job.startsWith("reliefweb") : j.job.includes(s.id)));
+      const statePill = cls === "info" ? runPill(job ? `Running · ${dur(job.runtime_sec)}` : label) : `<span class="pill ${cls}">${esc(label)}</span>`;
       let body = "";
       if (s.selected != null) {
         const pct = s.selected ? Math.min(100, (100 * s.ok) / s.selected) : 0;
@@ -82,7 +97,7 @@
           <ul class="facts">
             <li>Includes audit sample of excluded: <b>${n(s.audit_sample)}</b></li>
             ${s.attached_files ? `<li>Attached files: <b>${n(s.attached_files)}</b></li>` : ""}
-            <li>Failed: <b>${n(s.failed)}</b>${s.errors && s.errors.length ? " (" + esc(s.errors.map((e) => e[0] + " " + e[1]).join(", ")) + ")" : ""}</li>
+            <li>Failed: <b>${n(s.failed)}</b> ${errPill(s.failed, s.error_samples)}</li>
             <li>Stored: <b>${bytes(s.bytes)}</b> · last fetch ${esc(ago(s.last_fetch))}</li>
           </ul>`;
       } else if (s.id === "reliefweb") {
@@ -93,13 +108,14 @@
           <ul class="facts">
             <li>API calls today: <b>${n(s.calls_today)}</b> of ${n(s.daily_cap)}</li>
             <li>Next step: <b>${esc(s.stage)}</b></li>
+            ${s.error_samples && s.error_samples.length ? `<li>${s.months_done >= s.months_expected ? "Earlier stops (resumed and finished)" : "Stops logged"}: ${errPill(s.error_samples.length, s.error_samples)}</li>` : ""}
             <li>Top formats: ${esc((s.formats || []).slice(0, 3).map((f) => f[0] + " " + fmt.format(f[1])).join(", "))}</li>
           </ul>`;
       } else {
         body = `<ul class="facts"><li>Server cannot reach the site. Download the books into the manual folder.</li></ul>`;
       }
       return `<article class="src">
-        <div class="src-head"><span class="src-name">${esc(s.name)}</span><span class="pill ${cls}">${esc(label)}</span></div>
+        <div class="src-head"><span class="src-name">${esc(s.name)}</span>${statePill}</div>
         <div><div class="big">${n(s.metadata)}</div><div class="unit">${esc(s.metadata_unit)}</div></div>
         ${body}
         <div class="src-access">${esc(s.access)}</div>
@@ -248,13 +264,29 @@
   // ---------- news collection ----------
   function renderCollection(news) {
     const st = { listing: ["info", "Listing"], listed: ["good", "Listed"], "not started": ["idle", "Not started"] };
+    const stage = (c) => c.state === "listing" ? runPill("Listing") : `<span class="pill ${(st[c.state] || ["idle"])[0]}">${esc((st[c.state] || [0, c.state])[1])}</span>`;
     const rows = (news.collection || []).slice().sort((a, b) => a.country.localeCompare(b.country) || a.role.localeCompare(b.role));
     $("#coltable tbody").innerHTML = rows.map((c) => {
       const [cls, label] = st[c.state] || ["idle", c.state];
       return `<tr><td>${esc(c.name)}</td><td>${esc(c.country)}</td><td><span class="role">${esc(ROLE[c.role] || c.role)}</span></td>
-        <td><span class="pill ${cls}">${esc(label)}</span>${c.errors ? ` <span class="pill warn">${n(c.errors)} errors</span>` : ""}</td>
+        <td>${stage(c)} ${errPill(c.errors, c.error_samples, false)}</td>
+        <td class="dur" title="${c.started_at ? "started " + esc(new Date(c.started_at).toLocaleString()) : ""}">${c.state === "not started" ? "–" : dur(c.runtime_sec)}${c.state === "listed" ? " total" : ""}</td>
         <td class="num">${n(c.listed)}</td><td class="num">${n(c.sitemap_requests)}</td><td class="num">${n(c.fetched)}</td></tr>`;
-    }).join("") || '<tr><td colspan="7">No pilot outlets in the registry.</td></tr>';
+    }).join("") || '<tr><td colspan="8">No pilot outlets in the registry.</td></tr>';
+  }
+
+  const openErrors = new Set();
+  function showErrors(b, id) {
+    const box = document.createElement("div");
+    box.className = "errbox"; box.id = id; box.textContent = b.dataset.msg;
+    const tr = b.closest("tr");
+    if (b.dataset.inline === "false" && tr) {
+      const row = document.createElement("tr"); row.className = "errrow"; row.id = id;
+      const td = document.createElement("td"); td.colSpan = tr.cells.length; box.removeAttribute("id"); td.appendChild(box);
+      row.appendChild(td); tr.after(row);
+    } else {
+      b.parentElement.appendChild(box);
+    }
   }
 
   // ---------- load ----------
@@ -292,6 +324,16 @@
     drawMap();
   }));
   $("#refresh").addEventListener("click", load);
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest("button.errbtn");
+    if (!b) return;
+    const open = b.getAttribute("aria-expanded") === "true";
+    const id = b.getAttribute("aria-controls");
+    document.getElementById(id)?.remove();
+    if (open) { b.setAttribute("aria-expanded", "false"); openErrors.delete(b.dataset.key); return; }
+    b.setAttribute("aria-expanded", "true");
+    showErrors(b, id);
+  });
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMap);
 
   fetch("/static/vendor/countries-110m.json").then((r) => r.json()).then((w) => { world = w; drawMap(); });

@@ -121,3 +121,16 @@ tbody tr { cursor: pointer; }
 tbody tr:hover, tbody tr.sel { background: var(--sea); }
 .foot { color: var(--muted); font-size: 0.78rem; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* running spinner, durations, error details */
+.spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; display: inline-block; animation: spin 0.9s linear infinite; flex: none; }
+.pill.run::before { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; border-right-color: currentColor; opacity: 0.6; } }
+.dur { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+button.pill { border: 0; cursor: pointer; font: inherit; font-size: 0.75rem; font-weight: 600; }
+button.pill::after { content: "▾"; font-size: 0.7em; margin-left: 2px; }
+button.pill[aria-expanded="true"]::after { content: "▴"; }
+.errbox { margin: 6px 0 0; padding: 8px 10px; background: var(--bad-bg); color: var(--ink); border-radius: 6px; font: 0.76rem/1.45 var(--font-num); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+td .errbox { white-space: pre-wrap; }
+.errrow td { white-space: normal; background: var(--panel); }
