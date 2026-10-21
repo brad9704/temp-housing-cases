@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UNISTDisasterHousingBot</title>
+<meta name="description" content="Information about UNISTDisasterHousingBot, a research crawler collecting news and humanitarian reports on disaster sheltering and temporary housing.">
+<style>
+  :root { --bg:#ffffff; --fg:#1d1d1f; --muted:#5f6368; --line:#e3e3e6; --code:#f4f4f6; --link:#0b57d0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141416; --fg:#ececef; --muted:#a2a5ab; --line:#2c2c31; --code:#1f1f23; --link:#8ab4f8; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:40px 16px 64px; }
+  h1 { font-size:1.75rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:32px 0 8px; padding-top:16px; border-top:1px solid var(--line); }
+  p.lead { color:var(--muted); margin:0 0 24px; }
+  code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em; background:var(--code); border-radius:6px; }
+  code { padding:2px 5px; }
+  pre { padding:12px 14px; overflow-x:auto; }
+  a { color:var(--link); }
+  ul { padding-left:1.2em; }
+  li { margin:4px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>UNISTDisasterHousingBot</h1>
+<p class="lead">A research crawler operated for an academic study at UNIST (Ulsan National Institute of Science and Technology), Republic of Korea.</p>
+
+<h2>User-Agent</h2>
+<pre>Mozilla/5.0 (compatible; UNISTDisasterHousingBot/0.1; +https://brad9704.github.io/temp-housing-cases/)</pre>
+<p>The bot always sends this exact string. It never uses browser or other crawler identities, never rotates User-Agents or IP proxies, and does not spoof TLS fingerprints.</p>
+
+<h2>What it does</h2>
+<p>The study documents problems that arise in disaster evacuation shelters, prolonged shelter living, and temporary housing: what went wrong, why, and how it developed. The bot collects:</p>
+<ul>
+  <li>news articles from a small number of outlets per country, limited to publicly accessible pages;</li>
+  <li>public reports from humanitarian organisations, through their published APIs where these exist.</li>
+</ul>
+<p>Most requests read sitemaps or archive pages to find relevant articles, then fetch the articles themselves.</p>
+
+<h2>How it behaves</h2>
+<ul>
+  <li>It follows <code>robots.txt</code>, including <code>Crawl-delay</code>. If robots.txt cannot be fetched because of a server error or a failed connection, it treats the whole site as disallowed.</li>
+  <li>It sends at most one request at a time to any domain, spaced by a random 2–5 second delay or the site's Crawl-delay, whichever is longer.</li>
+  <li>It honours <code>Retry-After</code> on 429/503 responses and backs off exponentially.</li>
+  <li>It stops collecting from a domain after repeated 403/429 responses or a bot challenge. It does not attempt to solve or get around challenges.</li>
+  <li>It never bypasses paywalls or logins.</li>
+  <li>It excludes sites that reserve text-and-data mining or AI use in their robots.txt or terms.</li>
+</ul>
+
+<h2>How the data is used</h2>
+<ul>
+  <li>Collected text is used only for internal, non-commercial research analysis and is never redistributed.</li>
+  <li>Published outputs contain metadata, coded fields, and short quotations with citations only.</li>
+  <li>Content is not used to train AI models.</li>
+</ul>
+
+<h2>Blocking or limiting the bot</h2>
+<p>To block the bot entirely, add this to your robots.txt:</p>
+<pre>User-agent: UNISTDisasterHousingBot
+Disallow: /</pre>
+<p>To slow it down, add <code>Crawl-delay: &lt;seconds&gt;</code> under the same User-agent line.</p>
+
+<h2>Contact</h2>
+<p>For questions, blocking requests, or problems caused by the bot, please <a href="https://github.com/brad9704/temp-housing-cases/issues">open an issue</a> on the project repository. The crawler code is public in the <a href="https://github.com/brad9704/temp-housing-cases">same repository</a>.</p>
+</main>
+</body>
+</html>
