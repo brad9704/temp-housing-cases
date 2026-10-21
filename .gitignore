@@ -12,3 +12,4 @@ CLAUDE.md
 # 수집·정찰 산출물은 로컬에만 둔다 (공개 저장소는 코드만)
 registry/
 reports/
+infra/llm/local.env

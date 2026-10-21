@@ -56,13 +56,20 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
+# --- local paths (not committed) -------------------------------------------
+# 서버별 경로·모델 파일은 infra/llm/local.env 에 둔다 (local.env.example 참고).
+# local.env 는 `: "${VAR:=value}"` 형식으로 써서 호출 시 넘긴 환경변수가 우선하게 한다.
+LOCAL_ENV="${LLM_LOCAL_ENV:-$(dirname "$(readlink -f "$0")")/local.env}"
+# shellcheck disable=SC1090
+[[ -f "$LOCAL_ENV" ]] && source "$LOCAL_ENV"
+
 # --- config (override via env) ---------------------------------------------
-MODELS_DIR="${MODELS_DIR:-<MODELS_DIR>}"
+MODELS_DIR="${MODELS_DIR:-}"
 PORT="${LLM_PORT:-8005}"
 CTX="${LLM_CTX:-65536}"
 NGL="${LLM_NGL:-99}"
 HOST="${LLM_HOST:-0.0.0.0}"
-LLAMA_SERVER="${LLAMA_SERVER:-<LLAMA_SERVER>}"
+LLAMA_SERVER="${LLAMA_SERVER:-llama-server}"
 LOG="${LLM_LOG:-$HOME/llm_server_${PORT}.log}"
 PIDFILE="${LLM_PIDFILE:-$HOME/llm_server_${PORT}.pid}"
 
@@ -86,8 +93,7 @@ if [[ -n "${LLM_MODEL_PATH:-}" ]]; then
   CANDIDATES=("$LLM_MODEL_PATH")
 else
   CANDIDATES=(
-    "$MODELS_DIR/<model>.gguf"
-  #  "$MODELS_DIR/gemma-4-26b-a4b/<model>.gguf"
+    "${MODELS_DIR:+$MODELS_DIR/}${LLM_DEFAULT_MODEL_FILE:-}"
   )
 fi
 ALIAS="${LLM_ALIAS:-gemma-4-31b}"
@@ -201,8 +207,8 @@ launch() {
   model="$(find_model)"
   build_args "$model"
   # The llama.cpp build ships its shared libs (libmtmd/libllama/libggml*.so)
-  # next to the binary. After moving the tree to /opt the binary's baked-in
-  # RPATH no longer points at them (it was an absolute /home path, or was never
+  # next to the binary. After moving the build tree the binary's baked-in
+  # RPATH no longer points at them (it was an absolute build path, or was never
   # $ORIGIN-relative), so the loader reports "libmtmd.so.0: cannot open shared
   # object file". Prepend the binary's own directory to LD_LIBRARY_PATH so the
   # co-located .so files resolve. Derived from the binary path so it follows any
