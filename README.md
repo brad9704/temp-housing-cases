@@ -1,10 +1,14 @@
 # temp-housing-cases
 
-A research pipeline that builds a worldwide record of **problems in disaster sheltering and temporary housing** — what went wrong, why, and how it unfolded — from news archives and humanitarian documents.
+A research pipeline that builds a worldwide record of **problems in emergency sheltering and temporary housing** — what went wrong, why, and how it unfolded — from news archives and humanitarian documents.
 
 The goal is coverage of problem *types*: every kind of problem that has occurred in evacuation shelters, prolonged shelter living, and temporary housing (prefab units, containers, tents, rental subsidies, hotels, host families, and so on).
 
 ## Scope
+
+Full collection methodology and decision log: [docs/methodology.md](docs/methodology.md).
+
+- **Contexts**: disaster, armed conflict (IDP camps, collective centres), migrant and refugee reception, and homelessness accommodation are all included, tagged by `context_type`.
 
 - **Stages** follow Quarantelli (1995): `emergency_sheltering`, `temporary_sheltering`, `temporary_housing`, `permanent_housing`. The first three are the analysis target; `permanent_housing` is kept as context.
 - **Facility type and stage are separate axes.** A school gym used as a shelter is an existing building in `temporary_sheltering`; a rented flat under a rental-subsidy scheme (e.g. Japan's *minashi kasetsu*) is an existing building in `temporary_housing`.
@@ -13,7 +17,7 @@ The goal is coverage of problem *types*: every kind of problem that has occurred
   2. Humanitarian documents: IFRC GO appeal documents, Shelter Cluster, Shelter Projects case studies; ReliefWeb (API access approved; its API host disallows crawlers in robots.txt, so it is used as an explicit, documented exception).
 - **Unit of analysis**: a claim in one article or document. Episode (site × problem type × period), site, and disaster tables are always derived and never overwrite source records.
 
-Disasters are defined from the collected texts. External disaster databases (EM-DAT etc.) are used only to normalise names and link records, not to discover events.
+Events (disasters, conflicts, arrivals) are defined from the collected texts. External disaster databases (EM-DAT etc.) are used only to normalise names and link records, not to discover events.
 
 ## Collection policy
 
