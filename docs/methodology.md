@@ -66,6 +66,9 @@ All HTTP requests go through one client (`collectors/http.py`, `PoliteClient`). 
 | 2026-10-21 | Cloudflare Content-Signal values (`ai-train`, `ai-input`) are recorded but are not exclusion reasons, because this is not AI training. Example: Corriere della Sera (`ai-input=no`) remains in the pool. |
 | 2026-10-21 | Bot challenges count as blocks. Remedies are permission, verified-bot identity, or licensed databases only. |
 | 2026-10-21 | ReliefWeb API is used with an approved appname. `api.reliefweb.int` disallows all crawlers in robots.txt, so it is configured as an explicit, documented exception (`CRAWL_ROBOTS_EXCEPTIONS`), limited to approved API hosts. Responses obtained this way are flagged. |
+| 2026-10-21 | US pilot baseline switched from Hurricane Katrina (2005) to the Maui wildfires (2023). No Katrina-area regional paper has an accessible 2005–2008 archive; for Maui the core outlets (LA Times, CNN) and the regional probe (Honolulu Civil Beat) all have sitemaps. Katrina stays as an auxiliary event. |
+| 2026-10-21 | Morocco uses one core daily, the Arabic edition of Hespress, because its coverage is more detailed than the French edition's. Print dailies are blocked or paywalled. |
+| 2026-10-21 | Turkey: Cumhuriyet was chosen as the core daily over Sabah, which is equally accessible, so that the core pair is not two state-aligned outlets. The core broadcaster is the public TRT Haber. |
 | 2026-10-21 | Scope covers all three sheltering and temporary-housing stages, and all displacement contexts (disaster, conflict, migration, homelessness). |
 
 ## 4. News outlets
