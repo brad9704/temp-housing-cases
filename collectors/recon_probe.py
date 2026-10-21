@@ -257,6 +257,31 @@ _PAYWALL_RE = re.compile(r"paywall|piano\.io|tinypass|poool|subscriber[- ]only|p
 _YEAR_RE = re.compile(r"(?<!\d)(199\d|20[0-3]\d)(?!\d)")
 
 
+def parse_content_signals(robots_text: str) -> dict[str, str]:
+    """`*` 그룹(또는 그룹 밖)의 Content-Signal 값. 여러 줄이면 뒤 값이 덮어쓴다."""
+    out: dict[str, str] = {}
+    agents: list[str] = []
+    in_rules = False
+    for raw in robots_text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or ":" not in line:
+            continue
+        k, v = (x.strip() for x in line.split(":", 1))
+        k = k.lower()
+        if k == "user-agent":
+            if in_rules:
+                agents, in_rules = [], False
+            agents.append(v.lower())
+            continue
+        in_rules = True
+        if k == "content-signal" and (not agents or "*" in agents):
+            for part in v.split(","):
+                if "=" in part:
+                    sk, sv = (x.strip().lower() for x in part.split("=", 1))
+                    out[sk] = sv
+    return out
+
+
 def _years(e: dict) -> list[int]:
     ys = [int(y) for y in _YEAR_RE.findall(e["loc"])]
     for k in ("lastmod", "publication_date"):
@@ -329,6 +354,9 @@ def cmd_screen(a) -> None:
     row["tdm_reservation"] = bool(m)  # 명시적 유보만
     row["tdm_snippet"] = text[max(0, m.start() - 80): m.end() + 80].strip() if m else None
     row["ai_bots_named"] = sorted({x.lower() for x in _AI_BOT_RE.findall(text)})
+    # Cloudflare Content Signals (https://contentsignals.org). 기록만 한다.
+    # 2026-10-21 결정: 학습 목적 수집이 아니므로 ai-train·ai-input 신호는 제외 사유로 쓰지 않는다
+    row["content_signals"] = parse_content_signals(text) or None
     row["robots_allows_home"] = c.allowed(base + "/")
     if mode == "deny_all":
         return finish("blocked_robots_unreachable" if st.robots_error else "blocked_robots")

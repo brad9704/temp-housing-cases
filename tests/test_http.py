@@ -180,3 +180,16 @@ def test_sitemap_parse_and_years():
     kind, ents = _parse_sitemap(xml)
     assert kind == "sitemapindex" and len(ents) == 2
     assert _years(ents[0]) == [2011] and _years(ents[1]) == [2019]
+
+
+def test_content_signals_star_group_only():
+    from collectors.recon_probe import parse_content_signals
+    txt = """User-agent: *
+Content-Signal: search=yes, ai-train=yes, ai-input=no
+Allow: /
+
+User-agent: Amazonbot
+Content-Signal: ai-input=yes
+Disallow: /
+"""
+    assert parse_content_signals(txt) == {"search": "yes", "ai-train": "yes", "ai-input": "no"}
