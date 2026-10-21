@@ -6,3 +6,5 @@ __pycache__/
 data/
 validation/samples/
 *.tar.gz
+CLAUDE.md
+.claude/
