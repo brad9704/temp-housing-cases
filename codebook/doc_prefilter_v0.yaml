@@ -1,0 +1,36 @@
+# 구호기관 문서 사전 거르기 v0 (2026-10-21)
+# 문서 본문(PDF)을 받기 전에 메타데이터로 거른다. 변경은 걸러낸 문서의 표본 감사 결과로만 한다.
+# 걸러낸 문서는 출처별 무작위 2% (최소 100건)를 받아 누락 감사에 쓴다.
+
+audit_sample:
+  share: 0.02
+  min_per_source: 100
+  seed: 20261021
+
+ifrc_go:
+  exclude_disaster_types: [Epidemic, Food Insecurity, Biological Emergency, Transport Accident, Transport Emergency]
+  # 사전 계획서·재무·기여 목록은 문제 서술이 거의 없다
+  include_doc_types:
+    - Operations Update
+    - DREF Operation Update
+    - DREF Operation Final Report
+    - Final Report
+    - Preliminary Final Report
+    - Operational strategy
+    - 6 month update
+    - 12 month update
+    - DREF/EAP Update
+    - DREF/EAP Final Report
+    - Programme Update
+
+shelter_cluster:
+  # 회의록은 포함 (운영 문제가 직접 기록됨). 개인정보는 pipeline/pii.py로 가린다
+  exclude_slug_terms: [contact, contacts, presence, 4w, 3w, dashboard, presentation, ppt, template, form,
+                       tor, terms-of-reference, vacancy, organigram, logo, map, maps, calendar, attendance, invitation]
+
+reliefweb:
+  theme: Shelter and Non-Food Items
+  exclude_formats: [Map, Infographic, Appeal, Manual and Guideline]
+  # body(API 본문)를 먼저 받아 정규식 1차 필터를 돌리고, 통과했고 첨부가 있는 보고서만 PDF를 받는다
+  pdf_always_formats: [Assessment, Analysis, Evaluation and Lessons Learned]
+  pdf_only_if_body_passes_filter: true

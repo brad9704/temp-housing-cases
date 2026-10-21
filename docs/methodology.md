@@ -135,6 +135,25 @@ For events from 2021 on, 50 of 64 countries have a listable press outlet and a l
 
 Only metadata and document URLs have been collected so far. Document text (mostly PDF) will be extracted per page, and evidence offsets will be stored as (page, character offset).
 
+### Pre-filtering and personal data
+
+**Pre-filtering.** Document bodies are downloaded only after a metadata pre-filter, to limit load on source servers.
+- The rules are versioned in `codebook/doc_prefilter_v0.yaml`:
+  - IFRC GO: report and update document types; plans, financial statements, epidemics and food insecurity are excluded.
+  - Shelter Cluster: meeting minutes are kept; contact lists, dashboards, maps, templates and presentations are excluded.
+  - ReliefWeb: the API `body` is fetched first. The attached PDF is downloaded only when the body passes the first-stage filter, or when the report is an assessment, analysis or evaluation.
+- A random 2% of excluded documents (at least 100 per source) is downloaded for a recall audit.
+
+**Personal data.** Meeting minutes and contact sections contain staff emails and phone numbers. Before any LLM processing, `pipeline/pii.py`:
+- masks email addresses and phone numbers;
+- removes attendee-list sections.
+
+Numbers that libphonenumber classifies as mobile are logged separately so that the publishing organisation can be told that personal contact details are exposed in a public document. This log keeps:
+- the document URL, page and number type;
+- a masked number: the country code and last two digits only.
+
+A person checks each flag before any notice is sent. Public outputs never name private individuals.
+
 ## 6. Text processing (planned)
 
 1. **Dedup.** Wire re-publications and near-duplicates are found with MinHash LSH; original records are kept.
