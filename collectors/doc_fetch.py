@@ -65,8 +65,11 @@ def _select_ifrc(r: dict) -> list[dict]:
     raw = _raw("ifrc_go")
     types = {t["id"]: t["name"] for t in json.loads((raw / "disaster_types.json").read_text())["results"]}
     rule = r["ifrc_go"]
-    out = []
+    out, seen = [], set()
     for d in _jsonl(raw / "appeal_documents.jsonl"):
+        if d["id"] in seen:
+            continue
+        seen.add(d["id"])
         url = d.get("document_url") or d.get("document")
         if not url:
             continue
@@ -156,6 +159,8 @@ class Fetcher:
         ctype = (r.headers.get("content-type") or r.headers.get("Content-Type") or "").split(";")[0].strip()
         m = FILE_EXT.search(urlsplit(r.final_url).path)
         ext = (m.group(1).lower() if m else {"application/pdf": "pdf", "text/html": "html"}.get(ctype, "bin"))
+        if r.content[:5] == b"%PDF-":  # 서버가 octet-stream으로 보내는 경우
+            ext = "pdf"
         safe = re.sub(r"[^A-Za-z0-9._-]+", "_", doc_id)
         path = self.files / f"{safe}__{hashlib.sha1(url.encode()).hexdigest()[:8]}.{ext}.zst"
         path.write_bytes(self.cctx.compress(r.content))

@@ -54,17 +54,22 @@ def cmd_list_documents(a) -> None:
     path = out / "appeal_documents.jsonl"
     tmp = path.with_suffix(".jsonl.part")
     n = 0
-    url = f"{API}/appeal_document/?limit={a.page_size}&offset=0"
+    seen: set = set()
+    # 정렬을 고정하지 않으면 offset 페이지 사이에 중복·누락이 생긴다 (실측: 7,663건 중 중복 1,880)
+    url = f"{API}/appeal_document/?limit={a.page_size}&offset=0&ordering=id"
     with tmp.open("w") as fh:
         while url:
             d = _get_json(c, url)
             for rec in d["results"]:
+                if rec["id"] in seen:
+                    continue
+                seen.add(rec["id"])
                 fh.write(json.dumps({**rec, "_meta": meta}, ensure_ascii=False) + "\n")
                 n += 1
             url = d.get("next")
             print(f"{n}/{d.get('count')}", flush=True)
     tmp.replace(path)
-    print(f"saved {n} -> {path}")
+    print(f"saved {n} unique -> {path}")
 
 
 def cmd_summary(a) -> None:
