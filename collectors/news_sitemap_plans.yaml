@@ -38,6 +38,7 @@ outlets:
     child_dates: url
     lastmod_keyed: true
     margin_months: 2
+    include: '/sitemap/sitemap-\d{4}-\d{2}\.xml'
   ma_hespress:
     country: MA
     index: https://www.hespress.com/sitemap_index.xml
@@ -46,8 +47,9 @@ outlets:
   ma_kech24:
     country: MA
     index: https://kech24.com/sitemap.xml
-    child_dates: lastmod
-    include: 'post-sitemap\d*\.xml'
+    # 파일 lastmod가 수정 시각이라 쓸 수 없다. 정찰 근거(ma_kech24 프로파일): 기간 ≈ post-sitemap198..268
+    child_dates: numbered
+    numbered_range: [190, 275]
   it_tgcom24:
     country: IT
     index: https://www.tgcom24.mediaset.it/sitemap/sitemap.xml
@@ -76,6 +78,7 @@ outlets:
     country: US
     index: https://www.cnn.com/sitemap/article.xml
     child_dates: url
+    include: '/sitemap/article/(us|world|weather|politics|health|business|climate|investigations)/'
   us_civilbeat:
     country: US
     index: https://www.civilbeat.org/sitemap_index.xml
@@ -85,7 +88,9 @@ outlets:
     country: AU
     index: https://www.smh.com.au/sitemaps/smh-sitemaps-articles.xml
     child_dates: url
+    include: 'smh-articles-\d{8}\.xml'
   au_lismorecitynews:
     country: AU
     index: https://www.lismorecitynews.com.au/sitemap.xml
     child_dates: url
+    include: 'sitemap-\d{4}(\d{4})?\.xml'

@@ -160,6 +160,10 @@ class Lister:
             end = _add_months(self.end, self.plan.get("margin_months", 2))
         if self.plan.get("child_dates") == "lastmod":
             return True  # 순번 사이트맵은 아래 walk에서 lastmod 순서로 자른다
+        if self.plan.get("child_dates") == "numbered":
+            m = re.search(r"(\d+)\.xml", child["loc"])
+            lo, hi = self.plan["numbered_range"]
+            return bool(m) and lo <= int(m.group(1)) <= hi
         span = span_from_url(child["loc"])
         if span is None:
             return True  # 날짜 없는 중간 색인(섹션 색인 등)은 내려가 본다
