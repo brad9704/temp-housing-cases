@@ -1,0 +1,91 @@
+# 사이트맵 경로 언론사의 목록화 설정 (파일럿). 근거는 registry/outlet_profiles/<outlet_id>.json
+# window: 기준 사건 발생일 ~ +3년 (CLAUDE.md 파일럿 범위)
+# child_dates: 하위 사이트맵의 기간을 읽는 방법
+#   url      - 파일명의 날짜(YYYYMMDD, YYYY-MM, YYYYMM, YYYY_ 등)
+#   lastmod  - 색인의 lastmod (순번 사이트맵: 파일의 마지막 글 날짜)
+# lastmod_keyed: 하위 사이트맵이 발행일이 아니라 수정일 기준이면 true (기간 뒤 margin_months까지 연다)
+# include / exclude: 하위 사이트맵 URL 정규식 (기사 외 콘텐츠 제외)
+
+windows:
+  KR: [2017-11-15, 2020-11-15]
+  TR: [2023-02-06, 2026-02-06]
+  IT: [2016-08-24, 2019-08-24]
+  US: [2023-08-08, 2026-08-08]
+  CL: [2010-02-27, 2013-02-27]
+  MA: [2023-09-08, 2026-09-08]
+  AU: [2022-02-28, 2025-02-28]
+
+outlets:
+  kr_kbs:
+    country: KR
+    index: https://news.kbs.co.kr/sitemap/dailyNewsList.xml
+    child_dates: url
+  kr_donga:
+    country: KR
+    index: https://image.donga.com/sitemap/donga-sitemap.xml
+    child_dates: url
+  tr_cumhuriyet:
+    country: TR
+    index: https://www.cumhuriyet.com.tr/sitemaps/posts.xml
+    child_dates: url
+  tr_trthaber:
+    country: TR
+    index: https://www.trthaber.com/sitemaps/news.xml
+    child_dates: url
+  tr_haber46:
+    country: TR
+    index: https://www.haber46.com.tr/sitemap.xml
+    child_dates: url
+    lastmod_keyed: true
+    margin_months: 2
+  ma_hespress:
+    country: MA
+    index: https://www.hespress.com/sitemap_index.xml
+    child_dates: url
+    include: 'sitemap-posttype-post\.'
+  ma_kech24:
+    country: MA
+    index: https://kech24.com/sitemap.xml
+    child_dates: lastmod
+    include: 'post-sitemap\d*\.xml'
+  it_tgcom24:
+    country: IT
+    index: https://www.tgcom24.mediaset.it/sitemap/sitemap.xml
+    child_dates: url
+    include: '/contents/articolo/'
+  it_ilcentro:
+    country: IT
+    index: https://www.ilcentro.it/sitemap/sitemap.xml
+    child_dates: url
+    lastmod_keyed: true
+    margin_months: 3
+  cl_emol:
+    country: CL
+    index: https://www.emol.com/sitemap/sitemapIndex.xml
+    child_dates: url
+    https_only: true
+  cl_biobio:
+    country: CL
+    index: https://www.biobiochile.cl/static/sitemap.xml
+    child_dates: url
+  us_latimes:
+    country: US
+    index: https://www.latimes.com/sitemaps/sitemap.xml
+    child_dates: url
+  us_cnn:
+    country: US
+    index: https://www.cnn.com/sitemap/article.xml
+    child_dates: url
+  us_civilbeat:
+    country: US
+    index: https://www.civilbeat.org/sitemap_index.xml
+    child_dates: lastmod
+    include: 'post-sitemap\d*\.xml'
+  au_smh:
+    country: AU
+    index: https://www.smh.com.au/sitemaps/smh-sitemaps-articles.xml
+    child_dates: url
+  au_lismorecitynews:
+    country: AU
+    index: https://www.lismorecitynews.com.au/sitemap.xml
+    child_dates: url
