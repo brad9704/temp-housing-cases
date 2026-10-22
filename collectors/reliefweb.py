@@ -27,7 +27,7 @@ from collectors.http import FetchFailed, PoliteClient
 
 API = "https://api.reliefweb.int/v2/reports"
 PAGE = 1000
-MIN_PAGE = 50
+MIN_PAGE = 25
 DAILY_CAP = 900  # 공식 한도 1,000회/일에 여유
 FIELDS = [
     "id", "title", "url", "date.created", "date.original", "language.code",
@@ -169,8 +169,8 @@ def cmd_list_reports(a, subdir: str = "reports", field_names: list[str] = FIELDS
 
 
 def cmd_list_bodies(a) -> None:
-    # body가 든 응답은 커서 처음부터 작은 페이지로 받는다
-    cmd_list_reports(a, subdir="reports_body", field_names=["id", "body"], first_page=250)
+    # body가 든 응답은 약 1MB(100~250건)부터 서버가 연결을 끊는 일이 잦다(2026-10-22 관찰). 100건씩 받는다
+    cmd_list_reports(a, subdir="reports_body", field_names=["id", "body"], first_page=100)
 
 
 def cmd_summary(a) -> None:
