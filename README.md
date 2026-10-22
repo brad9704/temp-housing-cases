@@ -51,7 +51,9 @@ This project collects only what sites allow, under an honest identity.
 ## Repository layout
 
 ```
-collectors/   http.py (PoliteClient), recon_probe.py, pool.py, ifrc_go.py
+collectors/   http.py (PoliteClient), recon_probe.py, pool.py, ifrc_go.py, reliefweb.py, shelter_cluster.py,
+              doc_fetch.py, news_sitemap.py, news_fetch.py, parsers/<outlet_id>.py
+pipeline/     filter.py (v0 regex), news_text.py, doc_text.py, pii.py
 codebook/     regex dictionaries, schema
 queries/      sampling-frame queries (e.g. Wikidata SPARQL, run manually)
 infra/llm/    llama-server launch script
@@ -115,11 +117,7 @@ Every collection, filter, translation, and extraction record stores `code_commit
 - Lightweight screening done for 379 outlets across 64 countries.
 - IFRC GO metadata collected: 7,663 documents, 1,824 appeals, 157 countries.
 - Shelter Cluster document list collected: 21,039 documents in 305 response groups.
-- ReliefWeb (approved API access): metadata for reports tagged "Shelter and Non-Food Items" (about 171,000) being collected within the daily call limit.
-- Next: document-text extraction for humanitarian sources, sitemap and Wayback news collectors, recall audit of the v0 dictionary.
-
-## Limitations
-
-- Non-English text is machine-translated, which is a limitation of the analysis.
-- Coverage depends on what outlets keep online and allow us to crawl. Wayback-dependent outlets are incomplete, and capture rates are reported.
-- Humanitarian documents are largely self-reported by implementing organisations. They are stored with a separate `source_type` and analysed separately from news.
+- ReliefWeb (approved API access): metadata for all 171,881 reports tagged "Shelter and Non-Food Items" collected; API bodies being collected for the body-first pre-filter.
+- Humanitarian documents: IFRC GO documents downloaded (2,136) and text-extracted per page with PII redaction; Shelter Cluster downloads in progress.
+- News: in-window article URLs listed for 16 pilot outlets (2.84 million); a 200-article random sample per outlet fetched to check extraction and the v0 filter. One custom parser (Dong-A Ilbo).
+- Next: decide full news collection scope, ReliefWeb body filter rules, recall audit of the v0 dictionary.
