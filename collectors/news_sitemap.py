@@ -127,6 +127,29 @@ def parse(b: bytes) -> tuple[str, list[dict]]:
     return kind, out
 
 
+_BLOCK = re.compile(rb"<(url|sitemap)>(.*?)</\1>", re.S)
+
+
+def _tag(block: bytes, name: str) -> str | None:
+    m = re.search(rb"<(?:\w+:)?" + name.encode() + rb">\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</(?:\w+:)?" + name.encode() + rb">", block, re.S)
+    return m.group(1).decode("utf-8", "replace").strip() if m else None
+
+
+def parse_lenient(b: bytes) -> tuple[str, list[dict]]:
+    """XML이 깨진 사이트맵용(예: 이미지 캡션에 이스케이프 안 된 HTML). <url>/<sitemap> 블록에서 필요한 태그만 뽑는다."""
+    if b[:2] == b"\x1f\x8b":
+        b = gzip.decompress(b)
+    out, kind = [], "urlset"
+    for m in _BLOCK.finditer(b):
+        if m.group(1) == b"sitemap":
+            kind = "sitemapindex"
+        loc = _tag(m.group(2), "loc")
+        if loc:
+            out.append({"loc": loc, "lastmod": _tag(m.group(2), "lastmod"),
+                        "pub": _tag(m.group(2), "publication_date"), "title": _tag(m.group(2), "title")})
+    return kind, out
+
+
 class Lister:
     def __init__(self, outlet: str, plan: dict, window: tuple[date, date]):
         self.outlet, self.plan = outlet, plan
@@ -185,8 +208,10 @@ class Lister:
             try:
                 kind, ents = parse(b)
             except ET.ParseError as e:
-                self.errors.append(f"ParseError {e}: {url}")
-                continue
+                kind, ents = parse_lenient(b)
+                self.errors.append(f"ParseError {e}: {url} (lenient parse salvaged {len(ents)} entries)")
+                if not ents:
+                    continue
             if kind == "sitemapindex":
                 kids = [c for c in ents if self._child_in_window(c)]
                 if self.plan.get("child_dates") == "lastmod":

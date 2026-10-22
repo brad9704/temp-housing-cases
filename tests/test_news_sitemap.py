@@ -1,8 +1,9 @@
+import xml.etree.ElementTree as ET
 from datetime import date
 
 import pytest
 
-from collectors.news_sitemap import date_from_article_url, span_from_url
+from collectors.news_sitemap import date_from_article_url, parse, parse_lenient, span_from_url
 
 
 @pytest.mark.parametrize("url,expected", [
@@ -29,3 +30,17 @@ def test_article_url_date():
     assert date_from_article_url("https://www.emol.com/noticias/nacional/2010/03/05/1234/x.html") == date(2010, 3, 5)
     assert date_from_article_url("https://www.smh.com.au/national/x-20220301-p5a.html") == date(2022, 3, 1)
     assert date_from_article_url("https://news.kbs.co.kr/news/view.do?ncd=3591439") is None
+
+
+def test_parse_lenient_salvages_unescaped_html():
+    b = (b'<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
+         b'xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">'
+         b'<url><loc>https://x.cl/noticias/2011/01/02/1/a.html</loc>'
+         b'<image:image><image:caption><param name="movie" value="v.swf"></image:caption></image:image></url>'
+         b'<url><loc>https://x.cl/noticias/2011/01/03/2/b.html</loc><lastmod>2011-01-03</lastmod></url></urlset>')
+    with pytest.raises(ET.ParseError):
+        parse(b)
+    kind, ents = parse_lenient(b)
+    assert kind == "urlset"
+    assert [e["loc"] for e in ents] == ["https://x.cl/noticias/2011/01/02/1/a.html", "https://x.cl/noticias/2011/01/03/2/b.html"]
+    assert ents[1]["lastmod"] == "2011-01-03"
