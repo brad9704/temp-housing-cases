@@ -1,13 +1,15 @@
 """ReliefWeb API 수집기 (구호기관 문서 트랙).
 
     uv run python -m collectors.reliefweb list-reports [--theme "Shelter and Non-Food Items"] [--from 2000]
+    uv run python -m collectors.reliefweb list-bodies [--theme ...] [--from 1990]
     uv run python -m collectors.reliefweb summary
 
 - appname은 .env의 RELIEFWEB_APP_NAME. 로그·출력·레코드에 appname을 남기지 않는다.
 - api.reliefweb.int robots는 `Disallow: /`라서 CRAWL_ROBOTS_EXCEPTIONS 예외가 있어야 동작한다.
 - 하루 호출 한도(1,000회)를 넘지 않도록 날짜별 호출 수를 CRAWL_STATE_DIR에 기록하고 DAILY_CAP에서 멈춘다.
   멈춘 뒤 같은 명령을 다시 실행하면 끝난 월 단위 구간은 건너뛴다.
-- 메타데이터만 받는다. 본문(PDF)은 별도 단계.
+- list-reports는 메타데이터만, list-bodies는 같은 월 구간으로 API 본문(body)만 받는다(reports_body/).
+  body로 1차 필터를 돌린 뒤 통과한 보고서만 첨부 PDF를 받는다(codebook/doc_prefilter_v0.yaml).
 """
 
 from __future__ import annotations
@@ -113,12 +115,12 @@ def _months(year_from: int) -> list[tuple[str, str, str]]:
     return out
 
 
-def cmd_list_reports(a) -> None:
+def cmd_list_reports(a, subdir: str = "reports", field_names: list[str] = FIELDS) -> None:
     api = Api()
-    out = _raw_dir() / "reports"
+    out = _raw_dir() / subdir
     out.mkdir(exist_ok=True)
-    meta = {"source": API, "theme_filter": a.theme, **_code_state()}
-    fields = [("fields[include][]", f) for f in FIELDS]
+    meta = {"source": API, "theme_filter": a.theme, "fields": field_names, **_code_state()}
+    fields = [("fields[include][]", f) for f in field_names]
     done = skipped = 0
     try:
         for label, start, end in _months(a.year_from):
@@ -147,6 +149,10 @@ def cmd_list_reports(a) -> None:
     except FetchFailed as e:
         print(f"중단(재시도 소진): {e}. 같은 명령을 다시 실행하면 끝난 달은 건너뜁니다.")
     print(f"months done {done}, skipped (already saved) {skipped}")
+
+
+def cmd_list_bodies(a) -> None:
+    cmd_list_reports(a, subdir="reports_body", field_names=["id", "body"])
 
 
 def cmd_summary(a) -> None:
@@ -181,6 +187,10 @@ def main() -> None:
     p.add_argument("--theme", default="Shelter and Non-Food Items")
     p.add_argument("--from", dest="year_from", type=int, default=1990)
     p.set_defaults(fn=cmd_list_reports)
+    p = sub.add_parser("list-bodies")
+    p.add_argument("--theme", default="Shelter and Non-Food Items")
+    p.add_argument("--from", dest="year_from", type=int, default=1990)
+    p.set_defaults(fn=cmd_list_bodies)
     p = sub.add_parser("summary")
     p.set_defaults(fn=cmd_summary)
     a = ap.parse_args()
