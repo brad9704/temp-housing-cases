@@ -131,7 +131,7 @@ def _fetch_month(api: Api, base: list[tuple[str, str]], page: int, meta: dict) -
     return recs
 
 
-def cmd_list_reports(a, subdir: str = "reports", field_names: list[str] = FIELDS) -> None:
+def cmd_list_reports(a, subdir: str = "reports", field_names: list[str] = FIELDS, first_page: int = PAGE) -> None:
     api = Api()
     out = _raw_dir() / subdir
     out.mkdir(exist_ok=True)
@@ -145,7 +145,7 @@ def cmd_list_reports(a, subdir: str = "reports", field_names: list[str] = FIELDS
                 skipped += 1
                 continue
             # body를 포함한 1,000건 응답은 서버가 연결을 끊기도 한다(2003-04). 그 달만 페이지를 줄여 다시 받는다
-            page = PAGE
+            page = first_page
             while True:
                 try:
                     recs = _fetch_month(api, _conditions(a.theme, start, end) + fields, page, meta)
@@ -169,7 +169,8 @@ def cmd_list_reports(a, subdir: str = "reports", field_names: list[str] = FIELDS
 
 
 def cmd_list_bodies(a) -> None:
-    cmd_list_reports(a, subdir="reports_body", field_names=["id", "body"])
+    # body가 든 응답은 커서 처음부터 작은 페이지로 받는다
+    cmd_list_reports(a, subdir="reports_body", field_names=["id", "body"], first_page=250)
 
 
 def cmd_summary(a) -> None:
