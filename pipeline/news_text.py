@@ -13,6 +13,7 @@ report: 언론사별 추출 성공률, 필터 통과율(tier별)을 출력한다
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import subprocess
@@ -53,12 +54,23 @@ def _lang(oid: str) -> str:
     return json.loads(Path(f"registry/outlet_profiles/{oid}.json").read_text())["languages"][0]
 
 
-def extract_one(html: bytes, url: str) -> dict:
+def _parser(oid: str):
+    """collectors/parsers/<outlet_id>.py가 있으면 그 extract(html)로 본문을 뽑는다(범용 추출이 안 되는 언론사만)."""
+    try:
+        return importlib.import_module(f"collectors.parsers.{oid}").extract
+    except ModuleNotFoundError:
+        return None
+
+
+def extract_one(html: bytes, url: str, parser=None) -> dict:
     doc = trafilatura.bare_extraction(html, url=url, with_metadata=True, favor_precision=True)
-    if doc is None:
-        return {"title": None, "pub_date": None, "text": ""}
-    d = doc.as_dict() if hasattr(doc, "as_dict") else dict(doc)
-    return {"title": d.get("title"), "pub_date": d.get("date"), "text": d.get("text") or ""}
+    d = (doc.as_dict() if hasattr(doc, "as_dict") else dict(doc)) if doc is not None else {}
+    text, extractor = d.get("text") or "", f"trafilatura {trafilatura.__version__} favor_precision"
+    if parser is not None:
+        custom = parser(html)
+        if custom:
+            text, extractor = custom, f"custom parser + trafilatura {trafilatura.__version__} metadata"
+    return {"title": d.get("title"), "pub_date": d.get("date"), "text": text, "extractor": extractor}
 
 
 def cmd_extract(a) -> None:
@@ -67,14 +79,14 @@ def cmd_extract(a) -> None:
     for oid in targets:
         out = _out_dir() / f"{oid}.jsonl"
         done = {x["url"] for x in _jsonl(out)}
-        lang = _lang(oid)
+        lang, parser = _lang(oid), _parser(oid)
         n = 0
         with out.open("a") as fh:
             for rec in _jsonl(_news_dir() / oid / "html_index.jsonl"):
                 if not rec.get("ok") or rec["url"] in done:
                     continue
                 done.add(rec["url"])
-                e = extract_one(dctx.decompress(Path(rec["path"]).read_bytes()), rec["final_url"])
+                e = extract_one(dctx.decompress(Path(rec["path"]).read_bytes()), rec["final_url"], parser)
                 f = flt.match(e["text"], lang) if e["text"] else {"pass": False, "tier": None, "hits": [], "dict_version": flt.version}
                 fh.write(json.dumps({
                     "outlet_id": oid, "url": rec["url"], "list_date": rec.get("date"), "sample": rec.get("sample"),
@@ -82,7 +94,6 @@ def cmd_extract(a) -> None:
                     "extract_ok": len(e["text"]) >= MIN_CHARS and bool(e["pub_date"]),
                     "filter": {k: f[k] for k in ("pass", "tier", "dict_version")},
                     "filter_hits": [{k: h[k] for k in ("tier", "pattern", "text")} for h in f["hits"][:20]],
-                    "extractor": f"trafilatura {trafilatura.__version__} favor_precision",
                     "processed_at": datetime.now(timezone.utc).isoformat(), **code,
                 }, ensure_ascii=False) + "\n")
                 n += 1
