@@ -27,13 +27,26 @@ _TYPE_NAME = {v: k for k, v in vars(T).items() if isinstance(v, int)}
 # 본문 문장은 잡지 않는다(2026-10-22, IFRC 보고서 본문이 최대 120줄씩 지워지던 오탐 수정)
 _ATTENDEE_HEAD = re.compile(
     r"^[ \t]*(list of\s+)?(attendees|attendance(\s+list)?|participants(\s+list)?|persons?\s+present|present|"
-    r"liste de pr[ée]sence|asistentes|participantes|المشاركون|الحضور)[ \t]*(\(\d+\))?[ \t]*(:.*)?$",
+    r"liste de pr[ée]sence|asistentes|participantes|المشاركون|الحضور)[ \t]*(\(\d+\))?[ \t]*(?P<inline>:.*)?$",
     re.I | re.M,
 )
 _SECTION_HEAD = re.compile(
     r"^\s*((\d+|[IVX]+)[.)]\s+\S|agenda\b|action points?\b|minutes\b|discussion\b|summary\b|"
     r"ordre du jour\b|points? d'action\b|agenda del d[ií]a\b)", re.I)
 _MAX_ATTENDEE_LINES = 120
+# 명단 줄: 가린 연락처가 있거나, 대문자로 시작하는 2~4단어 이름 뒤에 쉼표·괄호·대시·줄끝이 오는 짧은 줄
+_NAME_LINE = re.compile(
+    r"\[EMAIL\]|\[PHONE\]|^\s*(\d+[.)]\s*)?((Mr|Ms|Mrs|Dr|Mme|M)\.?\s+)?"
+    r"[A-ZÀ-Þ][\w'’.-]+(\s+[A-ZÀ-Þ][\w'’.-]+){1,3}\s*([,(–—-]|$)")
+_PROSE_WORDS = 12  # 이 단어 수 이상이고 연락처가 없는 줄은 본문으로 보고 제거를 멈춘다
+
+
+def _is_name_line(line: str) -> bool:
+    return bool(_NAME_LINE.search(line)) and (len(line.split()) < _PROSE_WORDS or "[EMAIL]" in line or "[PHONE]" in line)
+
+
+def _is_prose(line: str) -> bool:
+    return len(line.split()) >= _PROSE_WORDS and "[EMAIL]" not in line and "[PHONE]" not in line
 
 
 @dataclass
@@ -55,10 +68,16 @@ def _drop_attendee_lists(text: str, findings: list[Finding]) -> str:
     for m in _ATTENDEE_HEAD.finditer(text):
         if m.start() < i:
             continue
-        out.append(text[i:m.start()])
         rest = text[m.end():].split("\n")
+        # 표의 "Participants" 열 제목 같은 오탐을 거른다: "제목: 내용" 형태가 아니면 다음 4줄 중 2줄 이상이 명단 줄이어야 한다
+        inline = bool((m.group("inline") or "").strip(" :\t"))
+        ahead = [l for l in rest[1:12] if l.strip()][:4]
+        if not inline and sum(_is_name_line(l) for l in ahead) < 2:
+            continue
+        out.append(text[i:m.start()])
         n = 1  # 제목 다음 줄부터
-        while n < len(rest) and n <= _MAX_ATTENDEE_LINES and not _SECTION_HEAD.match(rest[n]):
+        while (n < len(rest) and n <= _MAX_ATTENDEE_LINES and not _SECTION_HEAD.match(rest[n])
+               and not _is_prose(rest[n])):
             n += 1
         consumed = len("\n".join(rest[:n]))
         out.append("[ATTENDEE LIST REMOVED]")

@@ -43,3 +43,25 @@ def test_attendee_heading_forms(head):
     red, finds = redact(text)
     assert "John Doe" not in red and "Shelter gaps remain." in red
     assert [f for f in finds if f["kind"] == "attendee_list"]
+
+
+def test_training_table_participants_column_is_kept():
+    text = ("Training Type Branch Duration Date # Men # Women # Total\nParticipants\n"
+            "First aid Kabul 3 days 12/03 10 12 22\nPSS Herat 2 days 14/03 8 9 17\n"
+            "The trainings were delayed because the venue was used as an evacuation centre for flood-affected families.\n")
+    red, finds = redact(text)
+    assert red == text
+    assert not [f for f in finds if f["kind"] == "attendee_list"]
+
+
+def test_attendee_removal_stops_at_prose():
+    text = ("Participants\nJohn Doe, NGO A\nJane Roe, NGO B\n"
+            "The collective centre still has no separate toilets for women and the cluster asked for funding.\n")
+    red, _ = redact(text)
+    assert "John Doe" not in red and "separate toilets" in red
+
+
+def test_inline_attendee_heading_alone_is_removed():
+    red, finds = redact("Notes\nParticipants: UNHCR (J. Doe), IOM (R. Roe)\n1. Updates\nGaps remain.\n")
+    assert "J. Doe" not in red and "Gaps remain." in red
+    assert [f for f in finds if f["kind"] == "attendee_list"]
