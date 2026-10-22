@@ -23,9 +23,11 @@ EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 _PERSONAL_TYPES = {T.MOBILE, T.FIXED_LINE_OR_MOBILE, T.PERSONAL_NUMBER}
 _TYPE_NAME = {v: k for k, v in vars(T).items() if isinstance(v, int)}
 
+# 제목 줄만 잡는다: 용어만 있는 줄이거나 "용어:" 형태. "Present in Syria since…", "Participants were…" 같은
+# 본문 문장은 잡지 않는다(2026-10-22, IFRC 보고서 본문이 최대 120줄씩 지워지던 오탐 수정)
 _ATTENDEE_HEAD = re.compile(
-    r"^\s*(list of\s+)?(attendees|attendance|participants|present|persons? present|"
-    r"liste de pr[ée]sence|participants?\s*:|asistentes|participantes|المشاركون|الحضور)\b.*$",
+    r"^[ \t]*(list of\s+)?(attendees|attendance(\s+list)?|participants(\s+list)?|persons?\s+present|present|"
+    r"liste de pr[ée]sence|asistentes|participantes|المشاركون|الحضور)[ \t]*(\(\d+\))?[ \t]*(:.*)?$",
     re.I | re.M,
 )
 _SECTION_HEAD = re.compile(

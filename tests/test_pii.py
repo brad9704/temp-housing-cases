@@ -1,3 +1,5 @@
+import pytest
+
 from pipeline.pii import redact
 
 DOC = """Cebu Shelter Cluster Meeting Minutes
@@ -20,3 +22,24 @@ def test_redact_masks_and_flags_mobile():
     mobile = [x for x in phones if x["possible_personal"]]
     assert len(mobile) == 1 and mobile[0]["masked"].endswith("67") and "917" not in mobile[0]["masked"]
     assert all("4567" not in (x["masked"] or "") for x in f)
+
+
+@pytest.mark.parametrize("line", [
+    "Present in Syria since 1967, the ICRC is a neutral, impartial, and independent organization.",
+    "Participants were given choices between group or individual sessions.",
+    "present the objectives and scope of the intervention. Community meetings have also been held.",
+    "Participants of Lessons Learnt",
+])
+def test_prose_is_not_an_attendee_heading(line):
+    text = f"Intro.\n{line}\nShelter kits were late because of road damage.\n"
+    red, finds = redact(text)
+    assert "Shelter kits were late" in red
+    assert not [f for f in finds if f["kind"] == "attendee_list"]
+
+
+@pytest.mark.parametrize("head", ["Participants:", "ATTENDEES", "List of participants", "Attendance (12)", "Participants: UNHCR, IOM"])
+def test_attendee_heading_forms(head):
+    text = f"Meeting notes\n{head}\nJohn Doe, NGO A\nJane Roe, NGO B\n1. Updates\nShelter gaps remain.\n"
+    red, finds = redact(text)
+    assert "John Doe" not in red and "Shelter gaps remain." in red
+    assert [f for f in finds if f["kind"] == "attendee_list"]
