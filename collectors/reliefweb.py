@@ -27,6 +27,7 @@ from collectors.http import FetchFailed, PoliteClient
 
 API = "https://api.reliefweb.int/v2/reports"
 PAGE = 1000
+MIN_PAGE = 50
 DAILY_CAP = 900  # 공식 한도 1,000회/일에 여유
 FIELDS = [
     "id", "title", "url", "date.created", "date.original", "language.code",
@@ -115,6 +116,21 @@ def _months(year_from: int) -> list[tuple[str, str, str]]:
     return out
 
 
+def _fetch_month(api: Api, base: list[tuple[str, str]], page: int, meta: dict) -> list[dict]:
+    base = base + [("sort[]", "date.created:asc"), ("limit", str(page))]
+    recs, offset, total = [], 0, None
+    while total is None or offset < total:
+        d = api.get(base + [("offset", str(offset))])
+        total = d.get("totalCount", 0)
+        fetched_at = datetime.now(timezone.utc).isoformat()
+        for item in d.get("data", []):
+            recs.append({**item.get("fields", {}), "_meta": {**meta, "fetched_at": fetched_at}})
+        if not d.get("data"):
+            break
+        offset += page
+    return recs
+
+
 def cmd_list_reports(a, subdir: str = "reports", field_names: list[str] = FIELDS) -> None:
     api = Api()
     out = _raw_dir() / subdir
@@ -128,17 +144,18 @@ def cmd_list_reports(a, subdir: str = "reports", field_names: list[str] = FIELDS
             if path.exists():
                 skipped += 1
                 continue
-            base = _conditions(a.theme, start, end) + fields + [("sort[]", "date.created:asc"), ("limit", str(PAGE))]
-            recs, offset, total = [], 0, None
-            while total is None or offset < total:
-                d = api.get(base + [("offset", str(offset))])
-                total = d.get("totalCount", 0)
-                fetched_at = datetime.now(timezone.utc).isoformat()
-                for item in d.get("data", []):
-                    recs.append({**item.get("fields", {}), "_meta": {**meta, "fetched_at": fetched_at}})
-                if not d.get("data"):
+            # body를 포함한 1,000건 응답은 서버가 연결을 끊기도 한다(2003-04). 그 달만 페이지를 줄여 다시 받는다
+            page = PAGE
+            while True:
+                try:
+                    recs = _fetch_month(api, _conditions(a.theme, start, end) + fields, page, meta)
                     break
-                offset += PAGE
+                except FetchFailed:
+                    if page <= MIN_PAGE:
+                        raise
+                    page = max(MIN_PAGE, page // 4)
+                    print(f"{label}: 재시도 소진, 페이지 {page}건으로 다시 받음", flush=True)
+            total = len(recs)
             tmp = path.with_suffix(".part")
             tmp.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in recs))
             tmp.replace(path)  # 월 구간이 끝까지 받아졌을 때만 완료 파일 생성
