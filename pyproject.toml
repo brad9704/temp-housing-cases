@@ -20,6 +20,7 @@ dependencies = [
     "krippendorff",
     "phonenumbers>=9.0.41",
     "pycountry>=26.2.16",
+    "pypdfium2>=5.14.0",
 ]
 
 [project.optional-dependencies]
