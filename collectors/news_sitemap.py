@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import fcntl
 import gzip
 import json
 import os
@@ -230,6 +231,13 @@ def cmd_list(a) -> None:
                 "listed_at": datetime.now(timezone.utc).isoformat()}
         out = _raw(oid) / "urls.jsonl"
         tmp = out.with_suffix(".part")
+        # 같은 언론사 목록화를 두 프로세스가 동시에 돌리면 같은 .part를 함께 쓴다(2026-10-21 발생). 잠금으로 막는다
+        lock = (_raw(oid) / "list.lock").open("w")
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(f"{oid}: 다른 프로세스가 목록화 중이라 건너뜁니다", flush=True)
+            continue
         kept = dropped = undated = 0
         seen = set()
         with tmp.open("w") as fh:
@@ -255,6 +263,7 @@ def cmd_list(a) -> None:
                "sitemap_requests": lister.requests, "errors": len(lister.errors), "error_samples": lister.errors[:3]}
         (_raw(oid) / "list_report.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1))
         print(json.dumps(rep, ensure_ascii=False), flush=True)
+        lock.close()
 
 
 def cmd_summary(a) -> None:
